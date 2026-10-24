@@ -899,6 +899,7 @@ body.phone #ztip.lit { display: block; color: #ffd76a; border-color: #ffd76a; bo
 #ztip i:empty { display: none; }
 @keyframes tipPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0.55); } 70% { box-shadow: 0 0 0 10px rgba(255, 215, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0); } }
 #tipcard .tip-next { display: block; margin-top: 6px; border: 0; background: none; color: var(--gold, #ffcd6b); font: 600 12px Figtree, sans-serif; padding: 0; }
+body.phone kbd { display: none !important; }
 </style>
 </head>
 <body>
@@ -16897,7 +16898,7 @@ function floatTick() { floatRAF = 0; renderMap(); if (floaters.length || tracers
 const MOVE_MS = 140;
 // Walking pace when Corin is held to a direction, steered or sent somewhere: one tile every WALK_MS, and each step's
 // glide lasts exactly that long so steps run into each other with no stop-start.
-const WALK_MS = 270, RUN_MS = 150, NPC_MS = 520;
+const WALK_MS = 215, RUN_MS = 128, NPC_MS = 520;
 let walkPace = false, runToggle = false, shiftRun = false;
 try { runToggle = localStorage.getItem('tw-run') === '1'; } catch (e) { }
 // walking unless running is switched on; Shift flips it while held
@@ -24100,13 +24101,13 @@ function buildPhoneControls() {
     let dx = e.clientX - cx, dy = e.clientY - cy; const L = Math.hypot(dx, dy), max = RAD * 0.72;
     if (L > max) { dx = dx / L * max; dy = dy / L * max; }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    if (L < RAD * 0.24) { if (driving) driving = null; return; }
+    if (L < RAD * 0.18) { if (driving) driving = null; return; }
     const oct = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)), dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]], [ddx, ddy] = dirs[(oct + 8) % 8];
     // push to the rim to run
     shiftRun = L >= max * 0.95;
     const start = !driving; driving = { dx: ddx, dy: ddy };
     if (typeof AC !== 'undefined') AC.dir = [ddx, ddy];
-    if (start && performance.now() - lastStep >= curPace() * 0.6) { holdSteps = 0; stepNow(true); }
+    if (start && performance.now() - lastStep >= curPace() * 0.3) { holdSteps = 0; stepNow(true); }
   };
   joy.addEventListener('pointerdown', e => { e.preventDefault(); if (typeof sndInit === 'function') sndInit(); if (!canWalk()) return; active = e.pointerId; try { joy.setPointerCapture(e.pointerId); } catch (er) { } joy.classList.add('on'); place(e); moveTo(e); });
   joy.addEventListener('pointermove', e => { if (e.pointerId !== active) return; e.preventDefault(); moveTo(e); });
@@ -29183,6 +29184,30 @@ document.addEventListener('click', e => { if (TALK_UI.typing && e.target.closest
   const _ot2 = openTalk;
   openTalk = function () { const r = _ot2.apply(this, arguments); if (TALK_UI.on) modalRefresh = drawTalk; return r; };
   addEventListener('resize', () => { if (TALK_UI.on) { talkDress(); renderMap(); } });
+}
+
+</script>
+<script>/* phonetext.js */
+// On a phone there's no keyboard, so the game shouldn't talk about keys: "(R)" hints are dropped, "press G"
+// becomes "tap Take", and the little key caps on buttons are hidden (in CSS).
+'use strict';
+
+const PH_KEY = { G: 'Take', R: 'the rest button', C: 'the spell button', E: 'the Codex button', T: 'the torch button', F: 'Shoot', V: 'the prayer button', Q: 'Journal', P: 'the Character button', M: 'the sneak button', I: 'your pack', J: 'Journal' };
+function phoneText(t) {
+  if (typeof t !== 'string' || !document.body.classList.contains('phone')) return t;
+  return t
+    .replace(/\s\((?:(?:Shift|Ctrl)\+)?[A-Z0-9](?:\s*(?:or|\/|,)\s*(?:(?:Shift|Ctrl)\+)?[A-Z0-9])*\)/g, '')
+    .replace(/\b([Pp])ress ([A-Z]), or (the [\w ]+? button)/g, (_, p, k, b) => (p === 'P' ? 'Tap ' : 'tap ') + b)
+    .replace(/\b([Pp])ress ([A-Z])\b/g, (_, p, k) => (p === 'P' ? 'Tap ' : 'tap ') + (PH_KEY[k] || 'its button'))
+    .replace(/\b(and|or) ([A-Z]) to\b/g, (_, w, k) => `${w} ${PH_KEY[k] || 'its button'} to`)
+    .replace(/\bor press F to shoot\b/gi, 'or tap Shoot');
+}
+{
+  const _msg = msg; msg = function (text, ...a) { return _msg.call(this, phoneText(text), ...a); };
+  // lines already in the log (the opening one, an older save) get the same treatment when shown
+  const _rl = renderLog; renderLog = function () { try { if (S && S.log && document.body.classList.contains('phone')) for (const e of S.log) if (e && e.t) e.t = phoneText(e.t); } catch (er) { } return _rl.apply(this, arguments); };
+  const _om = openModal; openModal = function (title, html, ...a) { return _om.call(this, title, phoneText(html), ...a); };
+  if (typeof showTip === 'function') { const _st = showTip; showTip = function (text) { return _st.call(this, phoneText(text)); }; }
 }
 
 </script>
