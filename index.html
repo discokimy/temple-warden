@@ -811,6 +811,29 @@ body.phone .cr2-attrs { grid-template-columns: 1fr; }
 body.phone .cr2-steps button { font-size: 11px; padding: 6px 2px; }
 body.phone .creator2 { gap: 6px; }
 body.phone #modal-body:has(.creator2) { padding-top: 8px; }
+/* ---- the title screen on a phone: everything on one screen, no scrolling ---- */
+body.phone .title-ui { justify-content: flex-end; padding: calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 16px); gap: 12px; max-width: none; }
+body.phone .title-kicker { font-size: 10.5px; letter-spacing: 0.22em; gap: 8px; }
+body.phone .title-kicker::before, body.phone .title-kicker::after { width: 18px; }
+body.phone .title-logo h1 { font-size: clamp(30px, 10.5vw, 44px); }
+body.phone .title-logo::after { display: none; }
+body.phone .title-foot { display: none; }
+body.phone nav.title-menu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: none; }
+body.phone nav.title-menu .tbtn { grid-column: span 3; padding: 11px 16px; border-radius: 12px; }
+body.phone nav.title-menu .tbtn:hover:not([disabled]) { transform: none; }
+/* the three smaller choices share one row */
+body.phone nav.title-menu .tbtn:nth-last-child(-n+3) { grid-column: span 1; padding: 10px 4px; align-items: center; justify-content: center; text-align: center; font-size: 13px; line-height: 1.15; }
+body.phone nav.title-menu .tbtn.ghost { background: rgba(22, 16, 30, 0.5); border-color: rgba(255, 236, 200, 0.14); }
+body.phone .title-panel h2 { font-size: 18px; margin-bottom: 8px; }
+body.phone .slots { gap: 8px; }
+body.phone .slot { padding: 8px 12px; gap: 6px; border-radius: 12px; }
+body.phone .slot-body img { width: 44px !important; height: 44px !important; }
+body.phone .slot-body b { font-size: 15px; }
+@media (max-height: 620px) {
+  body.phone .title-ui { gap: 8px; padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+  body.phone .title-logo h1 { font-size: clamp(26px, 8.5vw, 36px); }
+  body.phone nav.title-menu .tbtn { padding: 9px 14px; }
+}
 </style>
 </head>
 <body>
