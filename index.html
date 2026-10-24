@@ -28236,6 +28236,153 @@ try {
 try { const _wa = wArrive; wArrive = function (id) { if (id === 'ashvale') { if (!S.maps.ashvale) S.maps.ashvale = buildAshvale(); return goMap('ashvale', 2, 18); } return _wa.apply(this, arguments); }; } catch (e) { }
 
 </script>
+<script>/* sidequests.js */
+// Personal stories: a few townsfolk with something they need, each a short chain of steps with its own ending.
+//   Bran: The Lost Apprentice. Tamsin: A Remedy for Rosa. Rolf: The Lantern Over the Bar. Berta: Bread and Salt.
+// They open up as you get to know people (a little trust, or the right point in the story). Talk to them to begin;
+// the journal tracks each step. State: S.sq = { id: step } (0 offered, then steps, 'done').
+
+Object.assign(ITEMS, {
+  coll_hammer: { id: 'coll_hammer', name: 'Coll’s Hammer', spr: 'hammer', cat: 'story', val: 0, tier: 99, wt: 2, note: 'A smith’s hammer, initials burned into the handle: C.A.' },
+  rosa_remedy: { id: 'rosa_remedy', name: 'Remedy for Rosa', spr: 'potion', pal: { b: '7fd0f5', c: 'e8f8ff' }, cat: 'story', val: 0, tier: 99, wt: 0.5, note: 'Tamsin’s strongest work, sealed with wax' },
+  halvard_lantern: { id: 'halvard_lantern', name: 'Halvard’s Lantern', spr: 'lantern', cat: 'story', val: 0, tier: 99, wt: 3, note: 'Smashed, the glass gone, the brass dented' },
+  mended_lantern: { id: 'mended_lantern', name: 'Halvard’s Lantern, mended', spr: 'lantern', cat: 'story', val: 0, tier: 99, wt: 3, note: 'Bran beat the dents out and fitted new horn panes' },
+  ashvale_earth: { id: 'ashvale_earth', name: 'Earth from Ashvale', spr: 'pebbles', cat: 'story', val: 0, tier: 99, wt: 1, note: 'A handful of earth and wildflower seed, wrapped in a cloth' },
+  berta_shawl: { id: 'berta_shawl', name: 'Berta’s Shawl', spr: 'amulet', pal: { b: '9a7ce0', c: 'c9a7ff' }, cat: 'jewelry', slot: 'amulet', hp: 10, regen: 1, val: 120, tier: 99, wt: 0.3, note: 'Knitted in Ashvale, forty years ago. It smells of lavender' },
+});
+for (const id of ['coll_hammer', 'rosa_remedy', 'halvard_lantern', 'mended_lantern', 'ashvale_earth', 'berta_shawl']) { const t = ITEMS[id]; if (t.spr && typeof iconRows === 'function') { try { iconRows(t.spr); } catch (e) { t.spr = 'scroll'; } } if (typeof ITEM_LORE !== 'undefined') ITEM_LORE[id] = t.note + '.'; }
+const sq = () => S.sq || (S.sq = {});
+const sqHas = id => P().inv.some(i => i.id === id);
+const sqTake = id => { const p = P(), i = p.inv.findIndex(x => x.id === id); if (i >= 0) p.inv.splice(i, 1); };
+const sqTrustOk = (who, n) => typeof trustOf === 'function' && trustOf(who) >= n;
+const sqTrust = (who, n) => { try { const P_ = parish(); P_.trust[who] = Math.min(5, (P_.trust[who] || 0) + n); } catch (e) { } };
+const sqHerb = id => (P().mats[id] || 0);
+
+const CHAINS = {
+  bran: { title: 'The Lost Apprentice', who: 'bran', open: () => sqTrustOk('bran', 2) && (S.maps.d3 || P().level >= 3),
+    steps: [
+      { ask: '“Coll was my apprentice. Best hands I ever trained. Last spring he took a cart of nails down to Gnarlhold to trade, and he never came back.” Bran turns a hammer over and over. “If he’s dead, I want to know. If he’s not, I want him home.”', task: 'Look for Coll in Gnarlhold. Bran thinks he went no further than the second level.', target: () => ({ map: 'g2', x: 0, y: 0, far: 1 }) },
+      { task: 'Bring Coll’s hammer back to Bran.', target: 'npc', ready: () => sqHas('coll_hammer'),
+        say: 'Bran takes the hammer and doesn’t say anything for a long time. Then: “Goblin knife-marks on the handle. He fought, then.” He puts it on the wall above the forge, beside his own. “Thank you. Come back tomorrow. I’ll have something for you.”', finish: () => { sqTake('coll_hammer'); const p = P(), w = p.equip.weapon, cls = w ? T(w).cls : 'sword', id = ITEMS[cls + '_steel'] ? cls + '_steel' : 'sword_steel'; const it = makeItem(id, 1); it.fine = 1; it.aff = { atk: 1, dmg: 1 }; it.affn = ['', 'of the Forge']; addItem(it); sqTrust('bran', 1); msg(`Bran forges you a ${itemName(it)}. “For Coll,” he says.`, 'level'); } },
+    ] },
+  tamsin: { title: 'A Remedy for Rosa', who: 'tamsin', open: () => sqTrustOk('tamsin', 2),
+    steps: [
+      { ask: '“My sister Rosa, in Thornbury. The lung-rot. My usual remedies won’t touch it.” Tamsin writes on a scrap of paper and pushes it across. “Cave lilies, two. A glowcap. One moonpetal from the Hollows. Bring me those and I can make something that will.”', task: 'Gather 2 cave lilies, a glowcap and a moonpetal for Tamsin.', target: 'npc', ready: () => sqHerb('cavelily') >= 2 && sqHerb('glowcap') >= 1 && sqHerb('moonpetal') >= 1,
+        finish: () => { const p = P(); p.mats.cavelily -= 2; p.mats.glowcap -= 1; p.mats.moonpetal -= 1; addItem(makeItem('rosa_remedy')); msg('Tamsin works through the night. In the morning she hands you a vial that glows faintly blue. “The drovers go to Thornbury. Take it to the barn.”', 'good'); } },
+      { task: 'Take the remedy to the drovers’ barn, for the Thornbury cart.', target: () => { const t = S.maps.town; for (const k in t.trig) if (t.trig[k].kind === 'barn') { const [x, y] = k.split(',').map(Number); return { map: 'town', x, y }; } return null; }, ready: () => false },
+      { task: 'Tell Tamsin the remedy is on its way.', target: 'npc', ready: () => true,
+        say: 'Tamsin sits down rather suddenly. “On its way. Good.” She wipes her eyes with the back of her hand and pretends she didn’t. “Here. You’ll get yourself killed down there one day; not on my watch.”', finish: () => { addItem(makeItem('pgheal', 0, 3)); try { skillsOf().alchemy = Math.min(100, skillsOf().alchemy + 10); } catch (e) { } sqTrust('tamsin', 2); msg('Tamsin gives you three potions of greater healing, and shows you how she made the remedy. (Alchemy +10)', 'level'); } },
+    ] },
+  rolf: { title: 'The Lantern Over the Bar', who: 'rolf', open: () => S.story.halvard && sqTrustOk('rolf', 2),
+    steps: [
+      { ask: 'Rolf polishes the same glass for a long time. “You found him, then. Halvard.” He sets the glass down. “He had a lantern. Brass, horn panes. Carried it all through the war. I’d like it, if it’s still down there. To hang over the bar.”', task: 'Find Halvard’s lantern, near where he fell on cave level 3.', target: () => ({ map: 'd3', x: 0, y: 0, far: 1 }) },
+      { task: 'Ask Bran to mend the lantern (2 iron ore).', target: () => { for (const [n, id] of allTownFolk()) if (n.who === 'bran' || n.spr === 'bran') return { map: id, x: n.x, y: n.y }; return null; }, ready: () => false },
+      { task: 'Bring the mended lantern to Rolf.', target: 'npc', ready: () => sqHas('mended_lantern'),
+        say: 'Rolf hangs the lantern on the hook above the bar and lights it. The whole room goes gold. Someone at the back raises a cup, and then everyone does. “To Halvard,” says Rolf, and then quieter: “The back room’s yours, any night you want it. No charge. Ever.” He reaches up and takes the old sword off the wall. “And take this. I never used it. You will.”',
+        finish: () => { sqTake('mended_lantern'); S.innFree = 1; const it = makeItem('sword_steel'); it.aff = { atk: 2, dmg: 1, holy: 1 }; it.affn = ['', 'of the Fox and Hound']; it.ench = 1; addItem(it); sqTrust('rolf', 2); msg('Rolf’s old sword is yours, and the Sleeping Fox’s back room is free for you from now on.', 'level'); } },
+    ] },
+  berta: { title: 'Bread and Salt', who: 'berta', open: () => S.story.ashvale === 'done',
+    steps: [
+      { ask: 'Berta holds your hands in both of hers. “You went. You went home and you laid them down.” She is crying, and doesn’t care. “Will you go once more for me? A handful of earth from Ashvale, and seed from the flowers. I want a little of it here, where I can see it.”', task: 'Gather earth and wildflower seed at the cairn in Ashvale.', target: () => S.maps.ashvale ? { map: 'ashvale', x: S.maps.ashvale.cairnAt[0], y: S.maps.ashvale.cairnAt[1] } : null },
+      { task: 'Bring the earth from Ashvale to Berta.', target: 'npc', ready: () => sqHas('ashvale_earth'),
+        say: 'Berta plants it that afternoon, kneeling in the lane in front of her cottage, refusing all help. By evening there is a little bed of turned earth with a ring of white stones round it. She takes off her shawl and puts it round your shoulders. “It was knitted in Ashvale. Now it’s been home and back. Like you.”',
+        finish: () => { sqTake('ashvale_earth'); addItem(makeItem('berta_shawl')); sqTrust('berta', 3); S.bertaGarden = 1; plantBertaGarden(); msg('Old Berta gives you her shawl. In front of her cottage, a little Ashvale garden.', 'level'); } },
+    ] },
+};
+function plantBertaGarden() {
+  const t = S.maps.town; if (!t || !S.bertaGarden || t.bertaGarden) return;
+  const n = t.npcs.find(x => x.who === 'berta' || x.spr === 'berta'); const h = n && (n.base && n.base.home || n.home) || (n ? [n.x, n.y] : null); if (!h) return;
+  for (const [dx, dy] of [[1, 1], [-1, 1], [2, 1], [-2, 1], [1, 2], [0, 2]]) { const x = h[0] + dx, y = h[1] + dy; if (walkable(t, x, y) && !t.decor[K(x, y)] && !t.trig[K(x, y)]) { t.decor[K(x, y)] = 'wildflowers'; t.trig[K(x, y)] = { dlg: 'locked', text: 'Berta’s little Ashvale garden, ringed with white stones. Wildflowers from home.' }; if (!t.bertaGarden) t.bertaGarden = 1; } }
+}
+// talking to them: the chain comes first, then the usual conversation
+{
+  const _ot = openTalk;
+  openTalk = function (who) {
+    try {
+      const id = Object.keys(CHAINS).find(k => CHAINS[k].who === who), c = id && CHAINS[id], st = id && sq()[id];
+      if (c && st !== 'done') {
+        if (st == null && c.open()) { sq()[id] = 0; return chainModal(id, c.steps[0].ask, 'Of course.'); }
+        if (typeof st === 'number') { const step = c.steps[st]; if (step.target === 'npc' && step.ready && step.ready()) return advance(id); }
+      }
+    } catch (e) { console.error(e); }
+    return _ot.apply(this, arguments);
+  };
+}
+function chainModal(id, text, btn) {
+  const c = CHAINS[id], pe = PEOPLE[c.who];
+  openModal(c.title, `<div class="keeper"><span class="gl big">${spriteImg(npcCanvas(pe.spr), 56)}</span><p class="lead">${text}</p></div><div class="btnrow"><button class="btn default" data-a="close">${btn || 'Close'}</button><button class="btn ghost" data-sqtalk="${c.who}">Talk about something else</button></div>`);
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sqtalk]'); if (!b || !S) return; closeModal(true); const who = b.dataset.sqtalk, id = Object.keys(CHAINS).find(k => CHAINS[k].who === who), st = sq()[id]; const keep = sq()[id]; sq()[id] = 'hold'; try { openTalk(who); } finally { sq()[id] = keep; } });
+function advance(id) {
+  const c = CHAINS[id], st = sq()[id], step = c.steps[st];
+  if (step.finish) step.finish();
+  const next = st + 1;
+  if (next >= c.steps.length) { sq()[id] = 'done'; if (step.say) chainModal(id, step.say, 'Thank you'); if (typeof cxBump === 'function') cxBump('sidequests'); if (typeof sfx === 'function') { try { sfx('level'); } catch (e) { } } }
+  else { sq()[id] = next; if (step.say) chainModal(id, step.say, 'I will'); else msg(`${c.title}: ${c.steps[next].task}`, 'news'); }
+  autosave(); render();
+}
+// the things to find, put where they belong
+onEnter(id => {
+  const m = curMap();
+  if (id === 'g2' && sq().bran === 0 && !m.collHammer) { const r = (m.rooms || [])[Math.floor((m.rooms || []).length / 2)]; if (r) { m.ground.push({ x: r.x + 1, y: r.y + 1, item: makeItem('coll_hammer') }); m.collHammer = 1; msg('Among the goblins’ junk here, something catches your eye: a good smith’s hammer.', 'talk'); } }
+  if (id === 'd3' && sq().rolf === 0 && !m.lanternPlaced) { const r = (m.rooms || [])[Math.max(0, (m.rooms || []).length - 2)]; if (r) { m.ground.push({ x: r.x + 1, y: r.y + 1, item: makeItem('halvard_lantern') }); m.lanternPlaced = 1; } }
+  if (id === 'town') plantBertaGarden();
+});
+// picking things up moves the chain along
+{
+  const _ai = addItem;
+  addItem = function (it) {
+    const r = _ai.apply(this, arguments);
+    try {
+      if (it && it.id === 'coll_hammer' && sq().bran === 0) { sq().bran = 1; msg('The Lost Apprentice: Coll’s hammer. Take it back to Bran.', 'news'); }
+      if (it && it.id === 'halvard_lantern' && sq().rolf === 0) { sq().rolf = 1; msg('The Lantern Over the Bar: Halvard’s lantern, smashed. Bran could mend it.', 'news'); }
+      if (it && it.id === 'ashvale_earth' && sq().berta === 0) { sq().berta = 1; }
+    } catch (e) { }
+    return r;
+  };
+}
+// the barn takes the remedy; Bran mends the lantern; the cairn gives up its earth
+onTrigger(tr => {
+  if (tr.kind === 'barn' && S.mapId === 'town' && sq().tamsin === 1 && sqHas('rosa_remedy')) { sqTake('rosa_remedy'); sq().tamsin = 2; msg('The Thornbury drover tucks the vial inside his coat. “Rosa Reed? I know the house. She’ll have it in three days.”', 'good'); return true; }
+  if (tr.ash === 'cairn' && sq().berta === 0 && S.story.ashvale === 'done' && !sqHas('ashvale_earth')) { addItem(makeItem('ashvale_earth')); msg('You kneel by the cairn and take up a handful of earth, and shake seed from the wildflowers into a cloth.', 'good'); return true; }
+  return false;
+});
+{
+  const _ot = openTalk;
+  openTalk = function (who) {
+    if (who === 'bran' && sq().rolf === 1 && sqHas('halvard_lantern')) {
+      const p = P(); if ((p.mats.iron || 0) < 2) { msg('Bran turns the lantern over. “I can mend this. Bring me two lumps of iron ore for the frame.”', 'talk'); return; }
+      p.mats.iron -= 2; sqTake('halvard_lantern'); addItem(makeItem('mended_lantern')); sq().rolf = 2;
+      return chainModal('rolf', 'Bran works on it without a word, beating out the dents, fitting new horn panes, polishing the brass until you can see your face. He hands it back. “Halvard’s. I remember it. Give Rolf my regards.”', 'Thank you');
+    }
+    return _ot.apply(this, arguments);
+  };
+}
+// free beds at the Fox
+{ const _r = rest; rest = function (where) { if (where === 'inn' && S.innFree) P().gold += 10; return _r.apply(this, arguments); }; }
+// the journal
+{
+  const _jq = jQuests;
+  jQuests = function () {
+    const out = _jq.apply(this, arguments);
+    try {
+      for (const [id, c] of Object.entries(CHAINS)) {
+        const st = sq()[id], pe = PEOPLE[c.who];
+        const npcAt = () => { for (const [n, mid] of allTownFolk()) if (n.who === c.who || n.spr === pe.spr) return { map: mid, x: n.x, y: n.y }; return null; };
+        if (st == null) { if (c.open()) out.push({ id: 'sq:' + id, group: 'Townsfolk', kicker: pe.name, title: `${pe.name.split(' ')[0]} wants a word`, desc: `${pe.name} has something on their mind. Find them and talk.`, target: npcAt() }); continue; }
+        if (st === 'done' || st === 'hold') continue;
+        const step = c.steps[st]; out.push({ id: 'sq:' + id, group: 'Townsfolk', kicker: `${c.title} · ${pe.name}`, title: step.task, desc: step.task, target: step.target === 'npc' ? npcAt() : (step.target ? step.target() : null), ready: step.ready && step.ready() });
+      }
+    } catch (e) { }
+    return out;
+  };
+}
+try {
+  ACHIEVEMENTS.push(['neighbour', 'A Good Neighbour', 'Finish a townsperson’s personal story.', () => Object.values(sq()).includes('done'), 'life']);
+  ACHIEVEMENTS.push(['allneighbours', 'Everybody’s Friend', 'Finish all four personal stories.', () => Object.keys(CHAINS).every(k => sq()[k] === 'done'), 'life']);
+} catch (e) { }
+
+</script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
