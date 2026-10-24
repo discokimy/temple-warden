@@ -175,7 +175,7 @@ function playerLit() { const m = curMap(), p = P(); return m.lit || m.outdoor ||
 // ================= derived stats =================
 function equipBonus(key) {
   let s = 0; const eq = P().equip;
-  for (const sl of SLOTS) { const it = eq[sl]; if (it && T(it)[key]) s += T(it)[key]; }
+  for (const sl of SLOTS) { const it = eq[sl]; if (it && T(it)[key]) s += T(it)[key]; if (it && it.aff && it.aff[key]) s += it.aff[key]; }
   return s;
 }
 const weaponT = () => { const w = P().equip.weapon; return w ? T(w) : null; };
@@ -193,20 +193,21 @@ const buff = k => (P().buffs || {})[k] > 0;
 function toHit(ranged) {
   const p = P(); const w = p.equip.weapon; const wt = weaponT();
   let v = Math.floor(p.level / 2) + mod(stat('dex')) + rank('wt') + gearAtk() + (buff('hunt') ? 3 : 0) + (berserking() ? 2 : 0) + (buff('rested') ? 1 : 0);
-  if (w && (!RANGED_CLS.has(wt.cls) || ranged)) v += (wt.atk || 0) + (w.ench || 0) + (wt.cls === 'spear' ? rank('spear') : 0) + (RANGED_CLS.has(wt.cls) ? rank('archery') : 0);
+  if (w && (!RANGED_CLS.has(wt.cls) || ranged)) v += (wt.atk || 0) + (w.ench || 0) + ((w.aff && w.aff.atk) || 0) + (wt.cls === 'spear' ? rank('spear') : 0) + (RANGED_CLS.has(wt.cls) ? rank('archery') : 0);
   return v;
 }
 function dmgRange(ranged) {
   const p = P(); const w = p.equip.weapon; const wt = weaponT();
   if (!w || (RANGED_CLS.has(wt.cls) && !ranged)) { const b = mod(stat('str')); return [Math.max(1, 1 + b), Math.max(1, 3 + b)]; }
   const b = (RANGED_CLS.has(wt.cls) ? mod(stat('dex')) : mod(stat('str'))) + (buff('hunt') ? 2 : 0) + (berserking() ? 3 : 0) + masteryDmg(wt.cls);
-  return [Math.max(1, wt.dmg[0] + (w.ench || 0) + b), Math.max(1, wt.dmg[1] + (w.ench || 0) + b)];
+  const ad = (w.aff && w.aff.dmg) || 0;
+  return [Math.max(1, wt.dmg[0] + (w.ench || 0) + b + ad), Math.max(1, wt.dmg[1] + (w.ench || 0) + b + ad)];
 }
 function defense() {
   const p = P(); let v = 10 + mod(stat('dex')) + rank('ironskin') * 2 + (buff('stone') ? 4 : 0) + (has('guardian') && p.equip.shield ? 3 : 0) + (buff('rested') ? 1 : 0) + (buff('ashield') ? 4 : 0);
   for (const sl of SLOTS) {
     const it = p.equip[sl]; if (!it || sl === 'weapon') continue;
-    v += (T(it).def || 0) + (sl === 'ring' || sl === 'amulet' ? 0 : (it.ench || 0));
+    v += (T(it).def || 0) + (sl === 'ring' || sl === 'amulet' ? 0 : (it.ench || 0)) + ((it.aff && it.aff.def) || 0);
   }
   return v;
 }
