@@ -863,6 +863,42 @@ body.phone .cx-toast b { font-size: 13px; }
 #keepcard .kc-t { flex: 1; min-width: 160px; color: var(--ink); }
 #keepcard .kc-b { display: flex; gap: 6px; margin-left: auto; }
 body.phone #keepcard { left: var(--sl); right: var(--sr); width: auto; bottom: auto; top: calc(var(--hudb, 70px) + 40px); }
+/* conversations on the phone: a sheet over the living scene */
+#tu-head { display: none; }
+body.phone #modal.talkmode { background: linear-gradient(to bottom, rgba(6,4,12,0) 0%, rgba(6,4,12,0) 28%, rgba(6,4,12,0.5) 100%); backdrop-filter: none; -webkit-backdrop-filter: none; align-items: flex-end; padding: 0; }
+body.phone #modal.talkmode .win { height: auto; max-height: 62vh; max-height: 62dvh; border-radius: 22px 22px 0 0; border: 0; border-top: 1px solid rgba(255, 216, 150, 0.28); background: linear-gradient(to bottom, rgba(30, 24, 38, 0.97), rgba(16, 12, 22, 0.985)); box-shadow: 0 -18px 50px rgba(0,0,0,0.55); overflow: visible; padding-top: 0; padding-bottom: env(safe-area-inset-bottom); animation: tuUp .32s cubic-bezier(.2,.9,.25,1); }
+@keyframes tuUp { from { transform: translateY(100%); opacity: .4; } to { transform: none; opacity: 1; } }
+body.phone #modal.talkmode .titlebar { display: none; }
+body.phone #modal.talkmode #tu-head { display: block; position: relative; flex: none; min-height: 58px; padding: 12px 52px 4px 126px; }
+#tu-head .tu-por { position: absolute; left: 12px; top: -54px; width: 104px; height: 104px; border-radius: 20px; overflow: hidden; background: radial-gradient(circle at 50% 35%, #4a3c5c, #1a1424 75%); border: 2px solid rgba(255, 216, 150, 0.55); box-shadow: 0 10px 26px rgba(0,0,0,0.55), inset 0 0 0 3px rgba(0,0,0,0.25); }
+#tu-head .tu-por.t0 { border-color: rgba(190, 190, 210, 0.45); }
+#tu-head .tu-por.t4, #tu-head .tu-por.t5 { border-color: #ffcd6b; box-shadow: 0 10px 26px rgba(0,0,0,0.55), 0 0 18px rgba(255, 205, 107, 0.35); }
+#tu-head .tu-por img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+#tu-head .tu-name b { display: block; font: 700 21px/1.1 var(--display, serif); color: #f6ead2; letter-spacing: .01em; }
+#tu-head .tu-name small { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; font-size: 12px; color: var(--dim); }
+#tu-head .tu-hearts .hearts i { width: 7px; height: 7px; }
+#tu-head .tu-x { position: absolute; right: 10px; top: 10px; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.05); color: var(--dim); font-size: 14px; }
+body.phone #modal.talkmode #modal-body { overflow-y: auto; padding: 8px 14px 14px; }
+body.phone #modal.talkmode .tk-ex { font-size: 15.5px; line-height: 1.5; min-height: 3em; }
+body.phone #modal.talkmode .ex.them b { display: none; }
+body.phone #modal.talkmode #modal-body .ex.them { max-width: 100%; padding: 10px 13px; border-radius: 4px 14px 14px 14px; background: rgba(255,255,255,0.06); }
+body.phone #modal.talkmode .dlg-topics .btn, body.phone #modal.talkmode .dlg-ask .choice { min-height: 42px; border-radius: 12px; }
+body.phone #modal.talkmode .dlg-ask .choice { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; height: auto; padding: 9px 12px; margin-top: 6px; line-height: 1.3; }
+body.phone #modal.talkmode .dlg-topics, body.phone #modal.talkmode .dlg-ask, body.phone #modal.talkmode .dlg-foot, body.phone #modal.talkmode .dlg-people { transition: opacity .25s; }
+body.tu-typing #modal.talkmode .dlg-topics, body.tu-typing #modal.talkmode .dlg-ask, body.tu-typing #modal.talkmode .dlg-foot, body.tu-typing #modal.talkmode .dlg-people { opacity: .35; }
+@media (orientation: landscape) {
+  body.phone #modal.talkmode { align-items: stretch; justify-content: flex-end; background: linear-gradient(to right, rgba(6,4,12,0) 0%, rgba(6,4,12,0) 40%, rgba(6,4,12,0.5) 100%); }
+  body.phone #modal.talkmode .win { width: min(52vw, 480px); max-height: none; height: 100%; border-radius: 22px 0 0 22px; border-top: 0; border-left: 1px solid rgba(255, 216, 150, 0.28); padding-right: env(safe-area-inset-right); animation-name: tuIn; }
+  @keyframes tuIn { from { transform: translateX(100%); opacity: .4; } to { transform: none; opacity: 1; } }
+  body.phone #modal.talkmode #tu-head { padding: 12px 48px 6px 96px; min-height: 92px; }
+  #tu-head .tu-por { top: 10px; width: 72px; height: 72px; border-radius: 16px; }
+}
+#ztip { display: none; position: relative; }
+body.phone #ztip.lit { display: block; color: #ffd76a; border-color: #ffd76a; box-shadow: 0 0 0 0 rgba(255, 215, 106, 0.6); animation: tipPulse 1.8s ease-out infinite; }
+#ztip i { position: absolute; right: -5px; top: -5px; min-width: 16px; height: 16px; border-radius: 8px; background: #ffb43a; color: #1a1006; font: 700 10px/16px Figtree, sans-serif; font-style: normal; }
+#ztip i:empty { display: none; }
+@keyframes tipPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0.55); } 70% { box-shadow: 0 0 0 10px rgba(255, 215, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0); } }
+#tipcard .tip-next { display: block; margin-top: 6px; border: 0; background: none; color: var(--gold, #ffcd6b); font: 600 12px Figtree, sans-serif; padding: 0; }
 </style>
 </head>
 <body>
@@ -3280,7 +3316,7 @@ const GROUND_CACHE = new Map();
 function groundBake(m) {
   const key = m.t.join('');
   const hit = GROUND_CACHE.get(m.id);
-  if (hit && hit.m === m && hit.key === key) return hit;
+  if (hit && hit.m === m && hit.key === key) { if (GROUND_CACHE.size > 1) { GROUND_CACHE.delete(m.id); GROUND_CACHE.set(m.id, hit); } return hit; }
   const W = m.w * 32, H = m.h * 32;
   const mats = []; for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) mats.push(groundMat(m, x, y));
   const matAt = (x, y) => x < 0 || y < 0 || x >= m.w || y >= m.h ? undefined : mats[y * m.w + x];
@@ -3419,7 +3455,12 @@ function groundBake(m) {
   }
   g.putImageData(img, 0, 0);
   const rec = { m, key, cv, mats };
-  GROUND_CACHE.clear(); GROUND_CACHE.set(m.id, rec);
+  // keep the last few places painted (town, the wilds, where you just were) so walking back is instant;
+  // the oldest goes once they'd take more memory than a phone should spare
+  GROUND_CACHE.delete(m.id); GROUND_CACHE.set(m.id, rec);
+  const budget = /iPhone|iPad|Android/.test(navigator.userAgent) || document.body.classList.contains('phone') ? 12e6 : 24e6;
+  let px = 0; for (const r of GROUND_CACHE.values()) px += r.cv.width * r.cv.height;
+  for (const [k, r] of GROUND_CACHE) { if (px <= budget || GROUND_CACHE.size <= 1 || k === m.id) continue; px -= r.cv.width * r.cv.height; r.cv.width = r.cv.height = 0; GROUND_CACHE.delete(k); }
   return rec;
 }
 
@@ -22763,32 +22804,48 @@ function drawFlow(m, GB, ox, oy, x0, y0, x1, y1, t) {
     snapEl = document.createElement('canvas'); snapEl.id = 'scene-snap'; host.appendChild(snapEl);
     titleEl = document.createElement('div'); titleEl.id = 'scene-title'; host.appendChild(titleEl);
   };
+  // While the scene changes, the map isn't redrawn: the held picture of the old place dips to dark at once (so a
+  // step through a door always answers straight away), the new place is drawn while it's dark, then it comes up.
+  let hold = 0, seq = 0;
+  const _rm = renderMap;
+  renderMap = function () { if (hold && performance.now() < hold) return; hold = 0; return _rm.apply(this, arguments); };
   const _goMap = goMap;
   goMap = function (id, x, y) {
-    const from = S && S.mapId, change = from && from !== id && !reduceMotion;
+    const from = S && S.mapId, change = from && from !== id && !reduceMotion && snapOk();
     if (change) {
       ensure();
-      // hold the outgoing frame
+      // hold the outgoing frame, and start dimming it now
       snapEl.width = cvs.width; snapEl.height = cvs.height; snapEl.style.width = cvs.style.width; snapEl.style.height = cvs.style.height;
       const g = snapEl.getContext('2d'); g.drawImage(cvs, 0, 0);
       snapEl.style.transition = 'none'; snapEl.style.opacity = '1'; snapEl.style.filter = 'brightness(1)'; snapEl.style.display = 'block';
+      void snapEl.offsetWidth;
+      snapEl.style.transition = 'filter 0.17s ease-in'; snapEl.style.filter = 'brightness(0.06)';
+      hold = performance.now() + 1500;
     }
     const r = _goMap(id, x, y);
     if (change) {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        snapEl.style.transition = 'opacity 0.55s ease-in-out, filter 0.3s ease-out'; snapEl.style.filter = 'brightness(0.25)'; snapEl.style.opacity = '0';
-      }));
-      setTimeout(() => { if (snapEl.style.opacity === '0') snapEl.style.display = 'none'; }, 700);
+      const my = ++seq;
+      setTimeout(() => {
+        if (my !== seq) return;
+        hold = 0; try { renderMap(); } catch (e) { }          // the heavy first paint happens in the dark
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (my !== seq) return;
+          snapEl.style.transition = 'opacity 0.42s ease-out'; snapEl.style.opacity = '0';
+          setTimeout(() => { if (my === seq && snapEl.style.opacity === '0') snapEl.style.display = 'none'; }, 480);
+        }));
+      }, 180);
       const m = curMap(), inside = m && (m.theme === 'house' || (m.id || '').startsWith('in_'));
       const region = m && (m.outdoor || m.lit) ? m.id : m && m.id;
       if (m && m.name && !inside && region !== lastTitled) {
         lastTitled = region;
         titleEl.innerHTML = `<span>${esc(m.name)}</span>`; titleEl.classList.remove('show'); void titleEl.offsetWidth; titleEl.classList.add('show');
-        clearTimeout(titleT); titleT = setTimeout(() => titleEl.classList.remove('show'), 1700);
+        clearTimeout(titleT); titleT = setTimeout(() => titleEl.classList.remove('show'), 1900);
       }
     }
     return r;
   };
+  // a canvas with nothing in it (hidden tab, test frame) can't be held
+  const snapOk = () => cvs && cvs.width > 0 && cvs.height > 0 && document.visibilityState === 'visible';
 }
 // prepare the big maps' ground in quiet moments, so arriving there doesn't stall the first frame
 {
@@ -27841,19 +27898,42 @@ setInterval(() => { try { tipTick(); } catch (e) { } }, 2500);
 document.addEventListener('change', e => { const b = e.target.closest('[data-tips]'); if (!b) return; TIPS_ON = b.checked; try { localStorage.setItem('tw-tips', TIPS_ON ? '1' : '0'); } catch (er) { } });
 
 // a small card in the corner, never over the middle of the map: it fades by itself, or tap ✕
-let tipTimer = 0;
+let tipTimer = 0, tipQueue = [];
+const tipPhone = () => document.body.classList.contains('phone');
 function showTip(text) {
+  // on a phone the map is too small to cover: a lightbulb lights up among the map buttons instead, and the tip
+  // opens only when you tap it
+  if (tipPhone()) { tipQueue.push(text); tipBulb(); return; }
+  tipCard(text, true);
+}
+function tipCard(text, timed) {
   let el = document.getElementById('tipcard');
   if (!el) {
     el = document.createElement('div'); el.id = 'tipcard'; el.setAttribute('role', 'status');
-    el.addEventListener('click', e => { if (e.target.closest('.tip-x')) hideTip(); });
+    el.addEventListener('click', e => { if (e.target.closest('.tip-x')) hideTip(); else if (e.target.closest('.tip-next')) tipOpen(); });
     (document.querySelector('.game') || document.body).appendChild(el);
   }
-  el.innerHTML = `<span class="tip-k">Tip</span><span class="tip-t">${esc(text)}</span><button class="tip-x" aria-label="Dismiss tip">✕</button>`;
+  const more = tipPhone() && tipQueue.length ? `<button class="tip-next">Next tip (${tipQueue.length})</button>` : '';
+  el.innerHTML = `<span class="tip-k">Tip</span><span class="tip-t">${esc(text)}${more}</span><button class="tip-x" aria-label="Dismiss tip">✕</button>`;
   el.classList.add('show'); clearTimeout(tipTimer);
-  tipTimer = setTimeout(hideTip, Math.min(12000, 4000 + text.length * 45));
+  if (timed) tipTimer = setTimeout(hideTip, Math.min(12000, 4000 + text.length * 45));
 }
 function hideTip() { const el = document.getElementById('tipcard'); if (el) el.classList.remove('show'); clearTimeout(tipTimer); }
+function tipBulb() {
+  let b = document.getElementById('ztip');
+  if (!b) {
+    const bar = document.getElementById('zoombar'); if (!bar) return;
+    b = document.createElement('button'); b.id = 'ztip'; b.setAttribute('aria-label', 'A new tip');
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2zm-3 18h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg><i></i>';
+    b.addEventListener('click', e => { e.stopPropagation(); tipOpen(); });
+    bar.insertBefore(b, bar.firstChild);
+  }
+  b.querySelector('i').textContent = tipQueue.length > 1 ? tipQueue.length : '';
+  b.classList.toggle('lit', tipQueue.length > 0);
+}
+function tipOpen() { const t = tipQueue.shift(); tipBulb(); if (t) tipCard(t, false); else hideTip(); }
+// tapping the map puts an open tip away
+document.addEventListener('pointerdown', e => { if (tipPhone() && !e.target.closest('#tipcard,#ztip')) { const el = document.getElementById('tipcard'); if (el && el.classList.contains('show')) hideTip(); } }, true);
 
 </script>
 <script>/* fx.js */
@@ -28981,6 +29061,128 @@ setTimeout(keepCheck, 20000);
   };
   document.addEventListener('click', e => { if (e.target.closest('#modal [data-keep="go"]')) shareSave(); });
   document.addEventListener('click', e => { if (e.target.closest('[data-sv="export"],[data-sv="copy"]')) markKept(); });
+}
+
+</script>
+<script>/* talkui.js */
+// Conversations on the phone, as a scene rather than a page. The town stays on screen above (or beside, when the
+// phone is held sideways), the camera eases up so you and whoever you're talking to stand clear of the sheet, and
+// the sheet carries a big portrait, their name and how they feel about you, then what they say, typed out in their
+// own little voice, with your answers underneath. Tap the words to skip the typing.
+'use strict';
+
+const TALK_UI = { on: false, last: '', typing: null, shift: 0, shiftTo: 0, raf: 0, voice: 220 };
+const talkSheet = () => document.body.classList.contains('phone');
+const talkLandscape = () => innerWidth > innerHeight;
+
+// ---------------- the camera eases aside ----------------
+{
+  const _vo = viewOffset;
+  viewOffset = function (W, H) {
+    const r = _vo.apply(this, arguments);
+    if (!TALK_UI.shift) return r;
+    try {
+      const k = TALK_UI.shift;
+      if (talkLandscape()) r[0] = Math.round(r[0] - W * 0.25 * k);
+      else {
+        // stand in the open band between the top bar and the sheet
+        const cv = document.getElementById('map'), cr = cv.getBoundingClientRect(), sc = H / (cr.height || H);
+        const win = document.querySelector('#modal.talkmode .win'), top = win ? (win.getBoundingClientRect().top - cr.top) * sc : H * 0.62;
+        let hb = 0; for (const el of document.querySelectorAll('.hud-player, .dock')) { const b = el.getBoundingClientRect(); if (b.height && b.top < innerHeight * 0.4) hb = Math.max(hb, (b.bottom - cr.top) * sc); } if (!hb) hb = H * 0.18;
+        const want = Math.max(hb + TS, (hb + top) / 2 + TS * 0.4);
+        r[1] = Math.round(r[1] + (want - H / 2) * k);
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+function talkEase(to) {
+  TALK_UI.shiftTo = to; if (TALK_UI.raf) return;
+  const step = () => {
+    const d = TALK_UI.shiftTo - TALK_UI.shift;
+    TALK_UI.shift = Math.abs(d) < 0.01 ? TALK_UI.shiftTo : TALK_UI.shift + d * 0.18;
+    try { renderMap(); } catch (e) { }
+    TALK_UI.raf = TALK_UI.shift !== TALK_UI.shiftTo ? requestAnimationFrame(step) : 0;
+  };
+  TALK_UI.raf = requestAnimationFrame(step);
+}
+
+// ---------------- the sheet ----------------
+function talkHead() {
+  let el = document.getElementById('tu-head');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'tu-head';
+    const win = document.querySelector('#modal .win'); win.insertBefore(el, win.firstChild);
+    el.addEventListener('click', e => { if (e.target.closest('.tu-x')) closeModal(); });
+  }
+  return el;
+}
+function talkPortraitImg(pe) {
+  const art = pe.spr ? npcCanvas(pe.spr) : propCanvas('body');
+  return spriteImg(art, 112, art.height > art.width ? 'head' : undefined);
+}
+function talkDress() {
+  const m = $('#modal'); if (!TALK_UI.on || !talkSheet()) { m.classList.remove('talkmode'); return; }
+  m.classList.add('talkmode');
+  const who = talkWho, pe = PEOPLE[who]; if (!pe) return;
+  const t = trustOf(who);
+  TALK_UI.voice = 150 + (tileHash(who.length * 7, who.charCodeAt(0) * 3) % 160) + (pe.spr && /tamsin|marta|hilde|berta|nettie|linnet|ada/.test(pe.spr) ? 90 : 0);
+  talkHead().innerHTML = `<div class="tu-por t${t}">${talkPortraitImg(pe)}</div>
+    <div class="tu-name"><b>${esc(pe.name)}</b><small>${esc(cap(pe.role))} · ${TRUST_NAMES[t]} <span class="tu-hearts">${hearts(t)}</span></small></div>
+    <button class="tu-x" aria-label="Leave the conversation">✕</button>`;
+  const b = $('#modal-body'), head = b.querySelector('.tk-head'); if (head) head.remove();
+  // type out only what's new
+  const ex = b.querySelector('.tk-ex'); if (!ex) return;
+  const sig = ex.textContent;
+  if (sig !== TALK_UI.last) { TALK_UI.last = sig; const lines = ex.querySelectorAll('.ex.them span, .ex.narr'); const tgt = lines[lines.length - 1]; if (tgt && !reduceMotion) typeIn(tgt); }
+  b.scrollTop = 0;
+}
+function typeIn(el) {
+  talkSkip();
+  const nodes = []; const walk = n => { for (const c of n.childNodes) c.nodeType === 3 ? nodes.push([c, c.textContent]) : walk(c); }; walk(el);
+  const total = nodes.reduce((a, n) => a + n[1].length, 0); if (total < 2) return;
+  for (const n of nodes) n[0].textContent = '';
+  document.body.classList.add('tu-typing');
+  let shown = 0, lastWord = 0;
+  const T0 = { nodes, total };
+  const tick = () => {
+    shown = Math.min(total, shown + 2);
+    let left = shown;
+    for (const [n, full] of nodes) { const k = Math.max(0, Math.min(full.length, left)); n.textContent = full.slice(0, k); left -= full.length; }
+    // a soft voice, a little pluck on each word
+    const flat = nodes.map(n => n[1]).join('');
+    if (shown - lastWord >= 4 && /\s/.test(flat[shown - 1] || '') && typeof pluck === 'function' && SND.ctx && !SND.vol.muted && !/^~|<i>/.test(flat)) { lastWord = shown; try { pluck(TALK_UI.voice * (0.92 + Math.random() * 0.16), { vol: 0.045, out: 'sfx', bright: 0.35, dur: 0.18 }); } catch (e) { } }
+    if (shown < total) T0.t = setTimeout(tick, 16); else talkSkip();
+  };
+  T0.finish = () => { for (const [n, full] of nodes) n.textContent = full; };
+  TALK_UI.typing = T0; tick();
+}
+function talkSkip() { const T0 = TALK_UI.typing; if (!T0) return; clearTimeout(T0.t); T0.finish(); TALK_UI.typing = null; document.body.classList.remove('tu-typing'); }
+document.addEventListener('click', e => { if (TALK_UI.typing && e.target.closest('#modal.talkmode .tk-ex')) talkSkip(); }, true);
+
+// ---------------- plugging in ----------------
+{
+  const _om = openModal;
+  openModal = function () { TALK_UI.on = false; talkSkip(); $('#modal').classList.remove('talkmode'); return _om.apply(this, arguments); };
+  const _cm = closeModal;
+  closeModal = function () {
+    const was = modalOpen; const r = _cm.apply(this, arguments);
+    if (was && !modalOpen) { TALK_UI.on = false; TALK_UI.last = ''; talkSkip(); $('#modal').classList.remove('talkmode'); if (TALK_UI.shift || TALK_UI.shiftTo) talkEase(0); }
+    return r;
+  };
+  const _ot = openTalk;
+  openTalk = function () {
+    TALK_UI.last = '';
+    const r = _ot.apply(this, arguments);
+    if (modalOpen && PEOPLE[talkWho]) { TALK_UI.on = true; talkDress(); if (talkSheet()) talkEase(1); }
+    return r;
+  };
+  const _dt = drawTalk;
+  drawTalk = function () { const r = _dt.apply(this, arguments); if (TALK_UI.on) talkDress(); return r; };
+  // a talk window's refresh still points at the old drawTalk: point it at the new one
+  const _ot2 = openTalk;
+  openTalk = function () { const r = _ot2.apply(this, arguments); if (TALK_UI.on) modalRefresh = drawTalk; return r; };
+  addEventListener('resize', () => { if (TALK_UI.on) { talkDress(); renderMap(); } });
 }
 
 </script>
