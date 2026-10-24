@@ -24975,7 +24975,7 @@ for (const ev of ['pointerdown', 'keydown', 'touchstart', 'wheel']) window.addEv
 // milliseconds between ambient redraws
 function frameBudget() {
   const idle = performance.now() - PERF.lastInput;
-  const busy = typeof AC !== 'undefined' && AC.on || typeof anyMoving !== 'undefined' && anyMoving || typeof driving !== 'undefined' && driving;
+  const busy = (typeof PFX !== 'undefined' && PFX.length) || typeof AC !== 'undefined' && AC.on || typeof anyMoving !== 'undefined' && anyMoving || typeof driving !== 'undefined' && driving;
   if (busy) return PERF.saver ? 50 : 33;
   if (idle > 45000) return PERF.saver ? 250 : 125;   // put the phone down and it barely ticks over
   if (idle > 12000) return PERF.saver ? 100 : 66;
@@ -27842,6 +27842,168 @@ function showTip(text) {
   tipTimer = setTimeout(hideTip, Math.min(12000, 4000 + text.length * 45));
 }
 function hideTip() { const el = document.getElementById('tipcard'); if (el) el.classList.remove('show'); clearTimeout(tipTimer); }
+
+</script>
+<script>/* fx.js */
+// Visual effects: a small particle system drawn over the map.
+//   Hits throw sparks and grit; a critical flashes gold; the fallen topple over and fade where they stood.
+//   Spells burst in their school's colours; each Gift has its own look; a level-up raises a column of light;
+//   gold and loot twinkle as you pick them up; running kicks up dust; champions and Echoes smoulder red;
+//   a legendary lying on the ground sends up a beam of gold. Calm mode and reduced motion keep it all gentle.
+
+const PFX = [];
+const FX_MAX = 260;
+const fxCalm = () => (typeof A11Y !== 'undefined' && A11Y.calm) || (typeof reduceMotion !== 'undefined' && reduceMotion);
+function fxAdd(p) { if (PFX.length >= FX_MAX) PFX.shift(); p.t0 = performance.now(); PFX.push(p); }
+const fxr = (a, b) => a + Math.random() * (b - a);
+// a burst of particles at a tile
+function fxBurst(x, y, { n = 10, colors = ['#ffffff'], speed = 2.2, life = 500, size = 2.2, gravity = 3, up = 0, shape = 'sq' } = {}) {
+  if (fxCalm()) n = Math.ceil(n / 3);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = speed * fxr(0.4, 1);
+    fxAdd({ k: 'p', x: x + 0.5 + fxr(-0.15, 0.15), y: y + 0.5 + fxr(-0.2, 0.1), vx: Math.cos(a) * s, vy: Math.sin(a) * s - up, g: gravity, life: life * fxr(0.7, 1.2), size: size * fxr(0.7, 1.3), c: colors[i % colors.length], shape });
+  }
+}
+function fxRing(x, y, color, { r = 1.2, life = 450, width = 3 } = {}) { fxAdd({ k: 'ring', x: x + 0.5, y: y + 0.5, r, life, c: color, w: width }); }
+function fxColumn(x, y, color, life = 1100) { fxAdd({ k: 'col', x: x + 0.5, y: y + 1, life, c: color }); }
+
+// ---------------- hooking the moments ----------------
+// hits, crits and heals: read off the floating numbers the game already shows
+{
+  const _af = addFloat;
+  addFloat = function (tx, ty, text, color, big) {
+    try {
+      if (S && !dead) {
+        const p = P(), atMe = tx === p.x && ty === p.y;
+        if (typeof text === 'number' && !atMe) {
+          const crit = color === '#ffd27a';
+          fxBurst(tx, ty, { n: crit ? 16 : 7, colors: crit ? ['#fff4c0', '#ffd27a', '#ffb040'] : ['#ffffff', '#d8d0c0', '#a89a8a'], speed: crit ? 3.2 : 2.2, life: crit ? 600 : 380, size: crit ? 2.6 : 2 });
+          if (crit) fxRing(tx, ty, 'rgba(255,214,122,0.9)', { r: 1.3 });
+        } else if (typeof text === 'number' && atMe) {
+          fxBurst(tx, ty, { n: 6, colors: ['#ff6b6f', '#c9343c'], speed: 1.8, life: 360, size: 2 });
+        } else if (atMe && /^\+\d+$/.test(text)) {
+          for (let i = 0; i < (fxCalm() ? 3 : 9); i++) fxAdd({ k: 'p', x: p.x + 0.5 + fxr(-0.35, 0.35), y: p.y + 0.9, vx: fxr(-0.2, 0.2), vy: -fxr(1.2, 2.2), g: 0, life: fxr(600, 900), size: fxr(1.6, 2.6), c: color === '#c06aff' ? '#d6a8ff' : '#8fd16a', shape: 'plus' });
+        } else if (atMe && /g$/.test(String(text))) {
+          fxBurst(tx, ty, { n: 8, colors: ['#ffd27a', '#fff0a0', '#e3b93c'], speed: 1.6, life: 520, size: 2, gravity: 1, up: 1.2, shape: 'star' });
+        }
+      }
+    } catch (e) { }
+    return _af.apply(this, arguments);
+  };
+}
+// the fallen topple and fade
+onBeforeKill(mon => {
+  try {
+    const t = MONSTERS[mon.id], art = typeof MON_FIG !== 'undefined' && MON_FIG[mon.id] ? figure(MON_FIG[mon.id], typeof facingOf === 'function' ? facingOf(mon) : 'down') : monCanvas(mon.id);
+    fxAdd({ k: 'ghost', x: mon.x, y: mon.y, art, life: fxCalm() ? 300 : 650, dir: Math.random() < 0.5 ? -1 : 1 });
+    fxBurst(mon.x, mon.y, { n: t.boss ? 30 : 12, colors: t.undead ? ['#e8e0cc', '#c8c0aa', '#ffffff'] : ['#8a7a6a', '#6a5a4a', '#a89a8a'], speed: t.boss ? 3.2 : 2, life: 700, size: 2.4, gravity: 2.5 });
+    if (t.boss || mon.champion || mon.echo) fxRing(mon.x, mon.y, 'rgba(255,214,122,0.85)', { r: 2.5, life: 800, width: 4 });
+  } catch (e) { }
+});
+// spells, in their school's colours
+const SCHOOL_COL = { evocation: ['#ff9a3a', '#ffd27a', '#ff5a2a'], restoration: ['#8fd16a', '#d8f8b0', '#ffffff'], illusion: ['#c9a7ff', '#7b4bb5', '#f0e4ff'], abjuration: ['#7fd0f5', '#3b6fc4', '#e8f8ff'], divination: ['#fff0a0', '#ffd27a', '#ffffff'] };
+{
+  const _ca = cast;
+  cast = function (id) {
+    const mp0 = S ? P().mp : 0, r = _ca.apply(this, arguments);
+    try {
+      if (S && P().mp < mp0) {
+        const p = P(), sp = SPELLS[id] || {}, col = SCHOOL_COL[sp.school] || SCHOOL_COL.evocation;
+        fxRing(p.x, p.y, col[0], { r: 1.4, life: 500 }); fxBurst(p.x, p.y, { n: 14, colors: col, speed: 2.4, life: 600, gravity: 0, up: 0.6, shape: 'star' });
+        if (/fire|meteor/.test(id)) { const m = curMap(); for (const o of m.mons) if (cheb(o, p) <= 6 && monVisible(o) && o.hp < o.mhp) fxBurst(o.x, o.y, { n: 12, colors: ['#ff5a2a', '#ffb040', '#fff0a0'], speed: 2.8, life: 600, gravity: -1 }); }
+        if (/frost/.test(id)) { const m = curMap(); for (const o of m.mons) if (cheb(o, p) <= 6 && monVisible(o)) fxBurst(o.x, o.y, { n: 8, colors: ['#e8f8ff', '#7fd0f5'], speed: 1.4, life: 700, gravity: 0.5, shape: 'star' }); }
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+// Gifts
+if (typeof useGift === 'function') {
+  const _ug = useGift;
+  useGift = function () {
+    const id = typeof giftOf === 'function' && giftOf(), p = P(), x0 = p.x, y0 = p.y, n0 = typeof giftLeft === 'function' ? giftLeft() : 0;
+    const r = _ug.apply(this, arguments);
+    try {
+      if (giftLeft() < n0) {
+        if (id === 'dawnfire') { fxRing(x0, y0, 'rgba(255,230,140,0.95)', { r: 2.6, life: 700, width: 5 }); fxColumn(x0, y0, 'rgba(255,220,120,0.55)', 900); fxBurst(x0, y0, { n: 26, colors: ['#fff4c0', '#ffd27a', '#ffffff'], speed: 4, life: 700, gravity: 0, shape: 'star' }); }
+        if (id === 'secondwind') { for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; fxAdd({ k: 'p', x: x0 + 0.5 + Math.cos(a) * 0.5, y: y0 + 0.8, vx: Math.cos(a) * 0.4, vy: -fxr(1.5, 2.5), g: 0, life: 900, size: 2.2, c: i % 2 ? '#8fd16a' : '#d8f8b0', shape: 'plus' }); } }
+        if (id === 'shadowstep') { fxBurst(x0, y0, { n: 18, colors: ['#2a2234', '#4a3a5e', '#14101c'], speed: 1.6, life: 700, gravity: -0.6, size: 3.4 }); fxBurst(p.x, p.y, { n: 18, colors: ['#2a2234', '#4a3a5e', '#14101c'], speed: 1.8, life: 600, gravity: -0.6, size: 3.4 }); }
+        if (id === 'beastfriend') { const m = curMap(); for (const o of m.mons) if (o.sleep > 0 && cheb(o, p) <= 8) fxBurst(o.x, o.y, { n: 6, colors: ['#a6e39a', '#fff0a0'], speed: 0.6, life: 1200, gravity: -0.4, shape: 'star' }); }
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+// a level-up: a column of light
+let fxLevel = null;
+onTurn(() => { try { const lv = P().level; if (fxLevel != null && lv > fxLevel) { const p = P(); fxColumn(p.x, p.y, 'rgba(255,214,122,0.6)', 1400); fxBurst(p.x, p.y, { n: 30, colors: ['#ffd27a', '#fff4c0', '#ffffff'], speed: 1.4, life: 1300, gravity: -1.4, up: 1.4, shape: 'star' }); } fxLevel = lv; } catch (e) { } });
+setInterval(() => { try { if (S && fxLevel == null) fxLevel = P().level; } catch (e) { } }, 1000);
+// running kicks up dust behind you
+{
+  const _sm = startMove;
+  startMove = function (obj, fx, fy) {
+    const r = _sm.apply(this, arguments);
+    try {
+      if (S && obj === S.player && !fxCalm() && typeof curPace === 'function' && curPace() < 200) {
+        const m = curMap(), wet = typeof wxWet === 'function' && wxWet() && isOpenAir(m), snow = typeof weather === 'function' && weather() === 'snow' && isOpenAir(m);
+        const c = snow ? ['#f4f8fc', '#dce6f0'] : wet ? ['#6a8aa8', '#a8c0d8'] : m.theme === 'cave' || m.theme === 'deep' ? ['#7a6a5a', '#5a4a3a'] : ['#c9b48a', '#a89068'];
+        for (let i = 0; i < 4; i++) fxAdd({ k: 'p', x: fx + 0.5 + fxr(-0.25, 0.25), y: fy + 0.9, vx: (fx - obj.x) * fxr(0.3, 0.8) + fxr(-0.3, 0.3), vy: -fxr(0.2, 0.7), g: 1.2, life: fxr(260, 420), size: fxr(1.6, 2.8), c: c[i % 2], shape: 'dust' });
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+
+// ---------------- drawing ----------------
+let fxLast = performance.now();
+onDraw(view => {
+  const now = performance.now(), dt = Math.min(0.05, (now - fxLast) / 1000); fxLast = now;
+  const { ox, oy } = view, m = curMap();
+  // standing auras: champions and Echoes smoulder; legendaries on the ground send up a beam
+  for (const o of m.mons) {
+    if (!(o.champion || o.echo) || !monVisible(o)) continue;
+    const v = typeof visualPos === 'function' ? visualPos(o) : o, cx = ox + (v.x + 0.5) * TS, cy = oy + (v.y + 0.92) * TS, pulse = 0.5 + 0.5 * Math.sin(now / 280 + o.x);
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, TS * 0.7); g.addColorStop(0, `rgba(255,70,40,${(0.32 + 0.2 * pulse).toFixed(2)})`); g.addColorStop(1, 'rgba(255,70,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, TS * 0.7, TS * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    if (!fxCalm() && Math.random() < 0.25) fxAdd({ k: 'p', x: o.x + 0.5 + fxr(-0.3, 0.3), y: o.y + 0.85, vx: 0, vy: -fxr(0.6, 1.2), g: 0, life: 600, size: 1.8, c: o.echo ? '#c9a7ff' : '#ff8a5a', shape: 'dust' });
+  }
+  for (const gr of m.ground || []) {
+    if (!gr.item || !gr.item.legend || !(m.lit || canSee(gr.x, gr.y))) continue;
+    const cx = ox + (gr.x + 0.5) * TS, top = oy + (gr.y - 2.2) * TS, bot = oy + (gr.y + 0.8) * TS, a = 0.18 + 0.1 * Math.sin(now / 400);
+    const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, 'rgba(255,214,122,0)'); g.addColorStop(1, `rgba(255,214,122,${a.toFixed(2)})`);
+    ctx.fillStyle = g; ctx.fillRect(cx - TS * 0.18, top, TS * 0.36, bot - top);
+    if (!fxCalm() && Math.random() < 0.15) fxAdd({ k: 'p', x: gr.x + 0.5 + fxr(-0.15, 0.15), y: gr.y + 0.6, vx: 0, vy: -fxr(0.8, 1.6), g: 0, life: 900, size: 1.6, c: '#fff0a0', shape: 'star' });
+  }
+  if (!PFX.length) return;
+  for (let i = PFX.length - 1; i >= 0; i--) {
+    const f = PFX[i], age = now - f.t0, k = age / f.life;
+    if (k >= 1) { PFX.splice(i, 1); continue; }
+    const a = 1 - k;
+    if (f.k === 'p') {
+      f.vy += (f.g || 0) * dt; f.x += f.vx * dt; f.y += f.vy * dt;
+      const x = ox + f.x * TS, y = oy + f.y * TS, s = Math.max(1.5, f.size * 1.5 * TS / 32 * (f.shape === 'dust' ? 1 + k : 1));
+      ctx.globalAlpha = f.shape === 'dust' ? a * 0.6 : a; ctx.fillStyle = f.c;
+      if (f.shape === 'star' || f.shape === 'plus') { ctx.fillRect(x - s, y - s / 3, s * 2, s * 0.66); ctx.fillRect(x - s / 3, y - s, s * 0.66, s * 2); }
+      else if (f.shape === 'dust') { ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill(); }
+      else ctx.fillRect(x - s / 2, y - s / 2, s, s);
+    } else if (f.k === 'ring') {
+      const x = ox + f.x * TS, y = oy + f.y * TS, rr = TS * f.r * (0.3 + 0.7 * Math.sqrt(k));
+      ctx.globalAlpha = a; ctx.strokeStyle = f.c; ctx.lineWidth = Math.max(1, f.w * a * TS / 32);
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.k === 'col') {
+      const x = ox + f.x * TS, y = oy + f.y * TS, w = TS * 1.1 * (1 - k * 0.4), h = TS * 6;
+      const g = ctx.createLinearGradient(0, y - h, 0, y); g.addColorStop(0, 'rgba(255,214,122,0)'); g.addColorStop(1, f.c);
+      ctx.globalAlpha = Math.min(1, a * 1.4); ctx.fillStyle = g; ctx.fillRect(x - w / 2, y - h, w, h);
+    } else if (f.k === 'ghost' && f.art) {
+      // the body tips over sideways and sinks, fading
+      const x = ox + (f.x + 0.5) * TS, y = oy + (f.y + 1) * TS, w = TS, h = TS * (f.art.height / f.art.width);
+      ctx.save(); ctx.globalAlpha = a * 0.9; ctx.translate(x, y); ctx.rotate(f.dir * Math.min(1, k * 2.2) * Math.PI / 2 * 0.9);
+      ctx.imageSmoothingEnabled = false; ctx.filter = `brightness(${(1 - k * 0.5).toFixed(2)})`;
+      ctx.drawImage(f.art, -w / 2, -h, w, h); ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
+});
 
 </script>
 
