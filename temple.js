@@ -359,7 +359,5 @@ function drawGameIcon(size) {
   o.beginPath(); o.roundRect(0, 0, size, size, size * 0.19); o.clip(); o.drawImage(c, 0, 0, size, size);
   return out.toDataURL('image/png');
 }
-try {
-  const ic = document.querySelector('link[rel="icon"]'), at = document.querySelector('link[rel="apple-touch-icon"]');
-  if (ic) ic.href = drawGameIcon(64); if (at) at.href = drawGameIcon(192);
-} catch (e) { }
+// The page's own icon links now carry the finished icon (icon64.png: Halvard praying at sunrise before the temple
+// hill, drawn edge to edge for the home screen), so nothing is swapped in at runtime any more.
