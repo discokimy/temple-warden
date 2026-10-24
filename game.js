@@ -2620,13 +2620,19 @@ function drawMinimap() {
   g.fillStyle = '#120f19'; g.fillRect(0, 0, W, H);
   const s = Math.max(1, Math.min(W / m.w, H / m.h)); const ox = (W - m.w * s) / 2, oy = (H - m.h * s) / 2;
   const COL = { '.': '#7d6f5a', '<': '#f2b84b', '>': '#f2b84b', 'C': '#f2b84b', '{': '#f2b84b', '}': '#f2b84b', ',': '#3f6b2a', 'f': '#4f7a30', ':': '#a89a7a', ';': '#8a7048', '~': '#3b6fc4', 'Y': '#1f3a18', 'T': '#2a4a20', 'w': '#9c7a50', 'r': '#8a3a2a', 'h': '#a8843a', 'l': '#4a5468', 'K': '#6f6a62', 'H': '#b8a888', 'W': '#7a3a2a', 'O': '#c99a3a', '+': '#c99a3a', 'Z': '#5a5650', '^': '#4a4a4a', 'V': '#8a6d1f', 'G': '#c9784a', 'S': '#c99a3a', 'Q': '#d8cdb6', 'J': '#8a5a2b', 'E': '#f2b84b', 'X': '#f2b84b', 'F': '#3b6fc4' };
-  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
-    if (!m.lit && !m.seen[y * m.w + x]) continue;
-    const t = m.t[y][x]; let col = COL[t];
+  // one pixel per tile into a small image, then scaled up in a single draw (thousands of fillRects were the slow part)
+  const mc = drawMinimap.cv || (drawMinimap.cv = document.createElement('canvas')), mg = mc.getContext('2d');
+  if (mc.width !== m.w || mc.height !== m.h) { mc.width = m.w; mc.height = m.h; }
+  const img = mg.createImageData(m.w, m.h), d = img.data, RGB = drawMinimap.rgb || (drawMinimap.rgb = {});
+  const rgb = col => RGB[col] || (RGB[col] = [parseInt(col.slice(1, 3), 16), parseInt(col.slice(3, 5), 16), parseInt(col.slice(5, 7), 16)]);
+  for (let y = 0; y < m.h; y++) { const row = m.t[y]; for (let x = 0; x < m.w; x++) {
+    const i = y * m.w + x; if (!m.lit && !m.seen[i]) continue;
+    const t = row[x]; let col = COL[t];
     if (t === '#') col = m.lit ? null : '#2c2636';
     if (!col) continue;
-    g.fillStyle = col; g.fillRect(ox + x * s, oy + y * s, Math.ceil(s), Math.ceil(s));
-  }
+    const c3 = rgb(col), j = i * 4; d[j] = c3[0]; d[j + 1] = c3[1]; d[j + 2] = c3[2]; d[j + 3] = 255;
+  } }
+  mg.putImageData(img, 0, 0); g.imageSmoothingEnabled = false; g.drawImage(mc, ox, oy, m.w * s, m.h * s);
   for (const [lx, ly] of m.lights || []) if (m.lit || m.seen[ly * m.w + lx]) { g.fillStyle = '#ff8a3a'; g.fillRect(ox + lx * s, oy + ly * s, Math.ceil(s), Math.ceil(s)); }
   for (const o of m.mons) if (monVisible(o) || buff('detect') || (has('tracker') && m.outdoor && cheb(o, p) <= 20)) { g.fillStyle = MONSTERS[o.id].prey ? (typeof A11Y !== 'undefined' && A11Y.cb ? '#7fd0f5' : '#ffd27a') : (typeof A11Y !== 'undefined' && A11Y.cb ? '#ff9a1f' : '#ff5a5f'); g.fillRect(ox + o.x * s - 0.5, oy + o.y * s - 0.5, Math.ceil(s) + 1, Math.ceil(s) + 1); }
   g.fillStyle = '#ffffff'; g.fillRect(ox + p.x * s - 1, oy + p.y * s - 1, Math.ceil(s) + 2, Math.ceil(s) + 2);

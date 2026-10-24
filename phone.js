@@ -76,16 +76,20 @@ setInterval(() => {
   const a = document.querySelector('#pp-a span'); if (!a || !S) return;
   const bump = typeof bumpMode === 'function' && bumpMode(), p = P();
   const fight = typeof AC !== 'undefined' && (AC.on || bump && curMap().mons.some(o => Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y)) <= 1 && monVisible(o) && !MONSTERS[o.id].prey));
-  a.textContent = fight ? (bump ? 'Attack' : 'Swing') : 'Act';
+  const label = fight ? (bump ? 'Attack' : 'Swing') : 'Act';
+  if (a.textContent === label) return; // nothing changed: leave the page alone
+  a.textContent = label;
   document.getElementById('pp-a').classList.toggle('fight', fight);
   document.getElementById('phonepad').classList.toggle('fight', fight);
 }, 200);
 
 buildPhoneControls(); phoneLayout();
 // rows below the hero card and the minimap sit just under them, however tall they grow
+let phoneHudKey = '';
 setInterval(() => {
   if (!document.body.classList.contains('phone')) return;
   const pl = document.querySelector('.hud-player'), mr = document.querySelector('.hud-right .mapcard'); if (!pl || !mr) return;
   const a = pl.getBoundingClientRect().bottom, b = mr.getBoundingClientRect().bottom, st = document.documentElement.style;
+  const key = Math.round(a) + ',' + Math.round(b); if (key === phoneHudKey) return; phoneHudKey = key;
   st.setProperty('--hudb', Math.round(Math.max(a, b) + 6) + 'px'); st.setProperty('--hudl', Math.round(a + 4) + 'px'); st.setProperty('--hudr', Math.round(b + 6) + 'px');
 }, 400);
