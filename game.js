@@ -236,7 +236,7 @@ const WALK_MS = 270, RUN_MS = 150, NPC_MS = 520;
 let walkPace = false, runToggle = false, shiftRun = false;
 try { runToggle = localStorage.getItem('tw-run') === '1'; } catch (e) { }
 // walking unless running is switched on; Shift flips it while held
-const curPace = () => (runToggle !== shiftRun) ? RUN_MS : WALK_MS;
+const curPace = () => Math.round(((runToggle !== shiftRun) ? RUN_MS : WALK_MS) * (typeof rideMul === 'function' ? rideMul() : 1));
 const motion = new WeakMap();
 let anyMoving = false;
 // which way people face: toward where they last stepped (or struck)
