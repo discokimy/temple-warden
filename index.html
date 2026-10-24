@@ -28006,6 +28006,236 @@ onDraw(view => {
 });
 
 </script>
+<script>/* ashvale.js */
+// Ashvale: your family's village, three days north over the cliff road, burned eighteen years ago.
+// The cliff road leaves the east side of the North Road once you've found Halvard. Ashvale is all ruin: blackened
+// walls, fallen beams, scorched trees, ash that still drifts in the wind, and wildflowers coming up through it.
+// The burned of Ashvale never had their rites, and walk the ruins as ash wraiths until you lay them to rest. In the
+// reeve's house (your grandfather Aldren's) the chimney still stands, and under the hearthstone your mother hid
+// something. In the graveyard by the chapel, the names. When it's done, you can raise a cairn in the square.
+// State: S.story.ashvale = 'arrived' | 'letter' | 'done'.
+
+// ---------------- the art ----------------
+Object.assign(NATIVE_PROPS, {
+  ruinwall: () => nativeProp(32, 44, ({ F, P }) => {
+    // a stretch of fieldstone wall, broken off ragged at the top, scorched black
+    const top = [14, 10, 8, 12, 16, 9, 6, 11];
+    for (let i = 0; i < 8; i++) { const x = i * 4, t = top[i]; F(x, t, 4, 44 - t, '#6f685e'); F(x, t, 4, 2, '#8a8376'); }
+    for (let y = 18; y < 44; y += 6) for (let x = (y / 6 % 2) * 4; x < 32; x += 8) F(x, y, 7, 1, '#4f4a42');
+    for (let i = 0; i < 40; i++) { const x = (i * 13) % 32, y = 10 + (i * 7) % 30; P(x, y, i % 3 ? '#2a2420' : '#3a3430'); }
+    F(0, 34, 32, 10, 'rgba(20,16,14,0.45)'); F(3, 38, 10, 6, '#1e1a18'); F(20, 40, 8, 4, '#26201c');
+  }),
+  ruincorner: () => nativeProp(32, 52, ({ F, P }) => {
+    F(10, 4, 14, 48, '#6f685e'); F(10, 4, 14, 2, '#8a8376'); F(22, 4, 2, 48, '#4f4a42');
+    for (let y = 10; y < 52; y += 6) F(10, y, 14, 1, '#4f4a42');
+    for (let i = 0; i < 30; i++) P(10 + (i * 5) % 14, 6 + (i * 11) % 44, '#2a2420');
+    F(4, 44, 26, 8, 'rgba(20,16,14,0.5)');
+  }),
+  charbeam: () => nativeProp(40, 20, ({ F, P }) => {
+    // a roof beam, burned through and fallen at an angle
+    for (let i = 0; i < 34; i++) { const y = 14 - Math.round(i * 0.25); F(3 + i, y, 2, 5, i % 5 ? '#1e1814' : '#2e2420'); P(3 + i, y, '#3e3028'); }
+    for (const x of [8, 17, 26]) { F(x, 9, 1, 3, '#ff8a3a'); }
+    F(30, 6, 8, 4, '#2a201a'); F(2, 15, 9, 4, '#241c16');
+  }),
+  rubble: () => nativeProp(32, 18, ({ E, P }) => {
+    E(16, 13, 14, 5, '#4f4a42'); E(10, 11, 6, 4, '#6f685e'); E(21, 10, 7, 4, '#7a7468'); E(16, 8, 4, 3, '#8a8376');
+    for (let i = 0; i < 14; i++) P(4 + (i * 9) % 24, 9 + (i * 5) % 8, i % 2 ? '#2a2420' : '#a49d90');
+  }),
+  burnttree: () => nativeProp(40, 72, ({ F, P }) => {
+    // a dead tree, black to the core, with two bare limbs
+    F(18, 22, 5, 50, '#1e1814'); F(17, 64, 7, 8, '#1a1410'); F(21, 22, 1, 44, '#2e2420');
+    for (let i = 0; i < 14; i++) { F(17 - i, 34 - i, 2, 2, '#1e1814'); F(22 + Math.round(i * 0.8), 26 - i, 2, 2, '#1e1814'); }
+    for (let i = 0; i < 7; i++) { F(10 - i, 26 - i * 1.4, 1, 2, '#241c18'); F(30 + i, 14 - i, 1, 2, '#241c18'); }
+    F(13, 70, 15, 2, 'rgba(0,0,0,0.25)');
+  }),
+  hearthruin: () => nativeProp(36, 80, ({ F, P, E }) => {
+    // the chimney still standing where the reeve's house was, blackened, a hearth at its foot
+    F(10, 4, 16, 64, '#6f685e'); F(10, 4, 16, 3, '#8a8376'); F(24, 4, 2, 64, '#4f4a42');
+    for (let y = 10; y < 68; y += 6) for (let x = 10 + (y / 6 % 2) * 4; x < 26; x += 8) F(x, y, 7, 1, '#4f4a42');
+    for (let i = 0; i < 40; i++) P(10 + (i * 7) % 16, 6 + (i * 13) % 58, '#2a2420');
+    F(4, 56, 28, 24, '#5a544a'); F(4, 56, 28, 2, '#7a7468'); F(10, 62, 16, 14, '#14100e'); F(12, 64, 12, 10, '#1e1814');
+    E(18, 74, 5, 1.5, '#ff6a2a'); P(15, 73, '#ffb040'); P(21, 74, '#ffb040'); // the embers that never quite go out
+    F(13, 76, 10, 3, '#9a9386'); // the hearthstone
+  }),
+  sundisc: () => nativeProp(36, 26, ({ F, P, E }) => {
+    // the chapel's sun-disc, fallen face up in the grass, its gilding mostly gone
+    E(18, 15, 13, 8, '#6a5a3a'); E(18, 14, 12, 7, '#a08a4a'); E(18, 14, 6, 3.5, '#c9a84a');
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; P(18 + Math.round(Math.cos(a) * 15), 14 + Math.round(Math.sin(a) * 9), '#8a7a4a'); }
+    F(9, 12, 6, 2, '#2a2420'); F(22, 16, 5, 1, '#2a2420');
+  }),
+  ashpatch: () => nativeProp(32, 20, ({ E, P }) => {
+    E(16, 12, 14, 6, 'rgba(40,36,34,0.55)'); E(12, 11, 7, 4, 'rgba(30,26,24,0.5)');
+    for (let i = 0; i < 10; i++) P(4 + (i * 11) % 26, 8 + (i * 3) % 8, 'rgba(120,112,104,0.6)');
+  }),
+  wildflowers: () => nativeProp(24, 16, ({ F, P }) => {
+    for (const [x, c] of [[4, '#e05a7a'], [9, '#f2c94c'], [14, '#f4f0e6'], [19, '#9a7ce0']]) { F(x, 8, 1, 7, '#3f7a2a'); F(x - 1, 6, 3, 2, c); P(x, 5, c); }
+  }),
+  cairn: () => nativeProp(30, 40, ({ E, F, P }) => {
+    E(15, 36, 13, 4, '#4f4a42'); E(15, 32, 11, 5, '#7a7468'); E(14, 25, 9, 5, '#8a8376'); E(16, 18, 7, 4, '#9a9386'); E(15, 12, 5, 3, '#a8a194'); E(15, 8, 3, 2, '#b8b0a2');
+    F(10, 33, 10, 1, '#5a544a'); F(11, 26, 8, 1, '#6a645a');
+    for (const [x, c] of [[5, '#e05a7a'], [24, '#f2c94c']]) { F(x, 34, 1, 4, '#3f7a2a'); F(x - 1, 33, 3, 2, c); }
+  }),
+});
+for (const k of ['ruinwall', 'ruincorner', 'charbeam', 'rubble', 'burnttree', 'hearthruin', 'sundisc', 'cairn']) DECOR_BLOCK[k] = 1;
+
+// ---------------- the ash wraiths ----------------
+MONSTERS.ash_wraith = { id: 'ash_wraith', name: 'ash wraith', home: 'ashvale', lv: [1, 1], hp: 30, atk: 8, def: 5, dmg: [4, 9], xp: 45, verb: ['burns', 'claws at'], undead: 1, darksight: 1, res: { pierce: 0.6, slash: 0.8 }, drop: [['bone', 0.4]] };
+if (typeof MON_FIG !== 'undefined') MON_FIG.ash_wraith = { race: 'hollow', build: 'slim', hunch: 1, skin: '4a4442', eyes: 'ff8a3a', torso: 'robe', shirt: '2a2422', pants: '2a2422', boots: '1a1614', jaw: 'soft' };
+try { CX_REGION.ashvale = 'Ashvale'; CX_REGION_ORDER.splice(CX_REGION_ORDER.indexOf('deep'), 0, 'ashvale'); CX_LORE.ash_wraith = 'The burned of Ashvale. Nobody gave them rites; nobody was left to. They walk the ruins in the shape of what the fire left.'; } catch (e) { }
+
+// ---------------- building the village ----------------
+const ASH_W = 56, ASH_H = 38;
+function buildAshvale() {
+  const m = blankMap('ashvale', ASH_W, ASH_H, ',', { lit: true, name: 'Ashvale', kind: 'surface', theme: 'cave' });
+  m.outdoor = 1; m.ashvale = 1;
+  const D = (x, y, d, t) => { if (x <= 0 || y <= 0 || x >= ASH_W - 1 || y >= ASH_H - 1) return; m.decor[K(x, y)] = d; if (t) m.trig[K(x, y)] = typeof t === 'string' ? { dlg: 'locked', text: t } : t; };
+  const free = (x, y) => tileAt(m, x, y) === ',' && !m.decor[K(x, y)] && !m.trig[K(x, y)];
+  // the cliffs all round, and a stream along the south
+  for (let x = 0; x < ASH_W; x++) { setTile(m, x, 0, '^'); setTile(m, x, 1, '^'); setTile(m, x, ASH_H - 1, '^'); }
+  for (let y = 0; y < ASH_H; y++) { setTile(m, 0, y, '^'); setTile(m, ASH_W - 1, y, '^'); setTile(m, ASH_W - 2, y, '^'); }
+  for (let x = 1; x < ASH_W - 2; x++) { const y = ASH_H - 4 + Math.round(Math.sin(x / 5) * 1.2); setTile(m, x, y, '~'); setTile(m, x, y + 1, '~'); }
+  // the old road in from the west, through the square, and the lanes
+  for (let x = 1; x <= 46; x++) setTile(m, x, 18, ';');
+  for (let y = 6; y <= 30; y++) setTile(m, 27, y, ';');
+  for (let x = 20; x <= 34; x++) for (let y = 15; y <= 21; y++) setTile(m, x, y, ':');
+  setTile(m, 1, 18, ';'); m.trig[K(1, 18)] = { go: 'wilds', at: [42, 12] };
+  // the well in the square, and the place for a cairn
+  D(27, 15, 'well', 'The village well, its windlass burned away. The water at the bottom is still clear.');
+  m.cairnAt = [24, 18]; m.trig[K(24, 18)] = { ash: 'cairn' };
+  // seven cottages, burned to their walls
+  const COTS = [[6, 10], [12, 23], [33, 24], [42, 22], [40, 7], [17, 6], [46, 13]];
+  const names = ['the Fletchers’', 'the Morrows’', 'the miller’s', 'the Lind house: Berta’s', 'the smith’s', 'the Cobbs’', 'the shepherd’s'];
+  COTS.forEach(([cx, cy], i) => {
+    for (let x = cx; x < cx + 5; x++) if (x !== cx + 2) D(x, cy, 'ruinwall'); D(cx, cy + 1, 'ruincorner'); D(cx + 4, cy + 1, 'ruincorner');
+    D(cx + 1, cy + 2, i % 2 ? 'charbeam' : 'rubble', `What is left of ${names[i]} cottage. The roof came down inside; the walls held.`);
+    D(cx + 3, cy + 2, 'ashpatch'); D(cx + 2, cy + 3, 'ashpatch');
+  });
+  // the reeve's house: your grandfather's, where you were born
+  const [hx, hy] = [31, 6];
+  for (let x = hx - 1; x <= hx + 5; x++) if (x !== hx + 2) D(x, hy + 4, 'ruinwall');
+  D(hx - 1, hy + 2, 'ruincorner'); D(hx + 5, hy + 2, 'ruincorner'); D(hx + 1, hy + 2, 'charbeam'); D(hx + 4, hy + 3, 'rubble');
+  D(hx + 2, hy + 1, 'hearthruin'); m.trig[K(hx + 2, hy + 1)] = { ash: 'hearth' }; m.hearth = [hx + 2, hy + 1];
+  D(hx + 3, hy + 3, 'ashpatch');
+  // the chapel, and its fallen sun
+  for (let x = 13; x <= 19; x++) if (x !== 16) D(x, 12, 'ruinwall');
+  D(12, 10, 'ruincorner'); D(20, 10, 'ruincorner'); D(16, 10, 'sundisc', 'Ashvale’s sun-disc, fallen from the chapel gable. Someone scratched a name into the gilding with a knife: HALVARD. Then, smaller: FORGIVE ME.');
+  // the graveyard beyond it
+  const graves = [['ALDREN, REEVE OF ASHVALE. KEEPER OF THE OLD TREATY. HE ASKED ONE MORE QUESTION.'], ['WENNA, HIS DAUGHTER. BRIGHT AS A COIN.'], ['TOMAS, SMITH’S SON, HER HUSBAND. HE WENT BACK IN FOR THEM.'], ['A small stone with no name, and a carved sun. Someone has kept the moss off it.']];
+  const gy = 26; let gi = 0;
+  for (let x = 4; x <= 12; x += 2) for (let y = gy; y <= gy + 4; y += 2) { const t = gi < graves.length ? graves[gi][0] : null; D(x, y, gi % 3 === 0 ? 'gravecross' : gi % 3 === 1 ? 'grave' : 'gravemoss', t || 'A grave with no name. Eighteen winters have worn it smooth.'); gi++; }
+  // scorched trees, wildflowers coming back, ash everywhere
+  let s = 7; const R = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < 70; i++) { const x = 2 + Math.floor(R() * (ASH_W - 5)), y = 3 + Math.floor(R() * (ASH_H - 9)); if (free(x, y) && Math.abs(y - 18) > 1 && Math.abs(x - 27) > 1) D(x, y, R() < 0.35 ? 'burnttree' : R() < 0.5 ? 'ashpatch' : 'wildflowers'); }
+  for (let i = 0; i < 18; i++) { const x = 3 + Math.floor(R() * (ASH_W - 7)), y = 3 + Math.floor(R() * (ASH_H - 9)); if (free(x, y)) D(x, y, 'oak'); }
+  // the restless dead
+  const spots = [[10, 15], [22, 9], [36, 14], [44, 18], [16, 26], [38, 27], [8, 22]];
+  for (const [x, y] of spots) if (walkable(m, x, y)) m.mons.push(makeMonster('ash_wraith', x, y));
+  m.lights = [[m.hearth[0], m.hearth[1] + 1, 3, 'hearth']];
+  return m;
+}
+// the cliff road: carved off the east side of the North Road
+function cliffRoad() {
+  const w = S.maps && S.maps.wilds; if (!w || w.cliffRoad) return;
+  const y = 12; let x0 = w.w - 2; while (x0 > 20 && !walkable(w, x0, y)) x0--;
+  for (let x = x0; x < w.w; x++) { setTile(w, x, y, ';'); delete w.decor[K(x, y)]; }
+  w.trig[K(w.w - 1, y)] = { go: 'ashvale', at: [2, 18] }; w.cliffRoad = 1;
+  const sx = Math.max(x0 - 1, 21); if (!w.trig[K(sx, y - 1)] && walkable(w, sx, y - 1)) { w.decor[K(sx, y - 1)] = 'stakes'; w.trig[K(sx, y - 1)] = { dlg: 'locked', text: 'A leaning post with the paint long gone. Someone has carved into it: ASHVALE, 3 DAYS. Under that, newer: DON’T.' }; }
+}
+onEnter(id => { if (id === 'wilds') cliffRoad(); });
+setInterval(() => { try { if (S && S.maps && S.maps.wilds) cliffRoad(); } catch (e) { } }, 3000);
+onTrigger(tr => {
+  if (tr.go === 'ashvale') {
+    if (!S.story.halvard) { msg('The old cliff road east, to Ashvale. Nobody goes there. You have no reason to, yet.', 'talk'); return true; }
+    if (!S.maps.ashvale) S.maps.ashvale = buildAshvale();
+    S.turn += Math.round(DAY_TURNS / 17 * 3);
+    goMap('ashvale', 2, 18); arriveAshvale(); return true;
+  }
+  if (tr.ash === 'hearth') { searchHearth(); return true; }
+  if (tr.ash === 'cairn') { raiseCairn(); return true; }
+  return false;
+});
+function arriveAshvale() {
+  if (S.story.ashvale) { msg('Ashvale. The wind moves the ash about the square.', 'talk'); return; }
+  S.story.ashvale = 'arrived';
+  const linnet = S.comp && S.comp.id === 'linnet';
+  openModal('Ashvale', `<p class="lead">The cliff road comes down into a valley gone grey. Walls without roofs. Black trees. Ash that lifts and settles in the wind, eighteen years on. Between the stones, wildflowers.</p>
+    <p>You were born here. You don’t remember any of it. And yet you know, without being told, which way the reeve’s house was.</p>
+    ${linnet ? '<p><i>Linnet stops at the edge of the square and doesn’t move for a long time. “The Fletchers’ house,” she says at last. “That one. My mother was born in it.”</i></p>' : ''}
+    <p class="dim">Something moves among the ruins: shapes of ash, that were people once.</p><div class="btnrow"><button class="btn" data-a="close">Go on</button></div>`);
+}
+function searchHearth() {
+  const p = P();
+  if (S.story.ashvale === 'letter' || S.story.ashvale === 'done') { msg('Your grandfather’s chimney, still standing. The embers in the hearth never quite go out.', 'talk'); return; }
+  S.story.ashvale = 'letter';
+  addItem(makeItem('wenna_letter'));
+  const ring = !(S.legendsFound || []).includes('leg_keeper') && typeof makeLegend === 'function';
+  if (ring) { addItem(makeLegend('leg_keeper')); (S.legendsFound = S.legendsFound || []).push('leg_keeper'); }
+  openModal('Under the hearthstone', `<p class="lead">The hearthstone lifts more easily than it should, as if it was meant to. Underneath, wrapped in oilcloth gone stiff with age: a letter, and ${ring ? 'a ring with four crests worn almost smooth' : 'nothing else'}.</p>
+    <p><i>“If you are reading this, then Halvard kept his promise and you are alive, and you have come home. I am writing it fast; there are riders on the north road and Father has gone out to meet them.</i></p>
+    <p><i>The fire will not take you. I don’t know how I know it, but I do. Aldren says the old book says so. Your father says I’m being silly and has gone to fetch water.</i></p>
+    <p><i>Be stubborn, like your grandfather. Be kind, like your father. Ask one more question. And don’t you dare spend your life being angry about this. We love you. We loved you first.”</i></p>
+    <p class="dim">The letter is signed with a W, and a small drawn sun.</p><div class="btnrow"><button class="btn" data-a="close">Close</button></div>`);
+  if (typeof sfx === 'function') { try { sfx('bell'); } catch (e) { } }
+}
+function raiseCairn() {
+  const m = curMap(), p = P(), left = m.mons.filter(o => o.id === 'ash_wraith').length;
+  if (S.story.ashvale === 'done') { msg('The cairn you raised for Ashvale. Someone has added a stone since.', 'talk'); return; }
+  if (S.story.ashvale !== 'letter') { msg('An empty place in the middle of the square. It feels like it’s waiting for something.', 'talk'); return; }
+  if (left) { msg(`The dead of Ashvale are not at rest. (${left} ash wraith${left > 1 ? 's' : ''} still walk the ruins.)`, 'warn'); return; }
+  const stone = (p.mats.stone || 0); if (stone < 5) { msg('A cairn for Ashvale would take five stones. You have ' + stone + '.', 'warn'); return; }
+  p.mats.stone -= 5; S.story.ashvale = 'done';
+  const [x, y] = m.cairnAt; m.decor[K(x, y)] = 'cairn'; m.trig[K(x, y)] = { ash: 'cairn' };
+  if (S.parish) S.parish.standing = (S.parish.standing || 0) + 2;
+  for (const k in m.decor) if (m.decor[k] === 'ashpatch' && Math.random() < 0.5) m.decor[k] = 'wildflowers';
+  openModal('A cairn for Ashvale', `<p class="lead">You build it stone by stone in the middle of the square, where the market was. When it’s done you say the rites Halvard taught you: for Aldren, for Wenna, for Tomas, for all of them by name where you know the names, and for the rest by the sun.</p><p>The wind drops. For the first time since you came, the ash lies still.</p><div class="btnrow"><button class="btn" data-a="close">Close</button></div>`);
+  if (typeof fxBurst === 'function') fxBurst(x, y, { n: 30, colors: ['#ffd27a', '#fff4c0', '#ffffff'], speed: 1.2, life: 2200, gravity: -0.8, up: 1, shape: 'star' });
+  render();
+}
+ITEMS.wenna_letter = { id: 'wenna_letter', name: 'Wenna’s Letter', spr: 'scroll', pal: { R: 'c9a84a' }, cat: 'story', val: 0, tier: 99, wt: 0.05, use: 'wennaletter', note: 'From your mother, hidden under the hearthstone' };
+if (typeof ITEM_LORE !== 'undefined') ITEM_LORE.wenna_letter = 'Written fast, the night Ashvale burned. Signed with a W and a small drawn sun.';
+{
+  const _ui = useItem;
+  useItem = function (it) { if (T(it).use === 'wennaletter') { openModal('Wenna’s Letter', `<p><i>“…Be stubborn, like your grandfather. Be kind, like your father. Ask one more question. And don’t you dare spend your life being angry about this. We love you. We loved you first.”</i></p><div class="btnrow"><button class="btn" data-a="close">Close</button></div>`); return; } return _ui.apply(this, arguments); };
+}
+// the dead laid to rest
+onKill((mon, info) => { if (mon.id === 'ash_wraith' && info.map && info.map.id === 'ashvale') { const left = info.map.mons.filter(o => o.id === 'ash_wraith').length; msg(left ? 'The wraith comes apart into ash, and the ash lies still.' : 'The last of the wraiths comes apart. Ashvale is quiet now.', left ? 'talk' : 'level'); } });
+// falling ash, and the colour drained out of everything
+onDraw(view => {
+  if (S.mapId !== 'ashvale') return;
+  const { r } = view, done = S.story.ashvale === 'done';
+  ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = `rgba(128,128,128,${done ? 0.35 : 0.6})`; ctx.fillRect(0, 0, r.width, r.height);
+  ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = done ? 'rgba(255,240,220,1)' : 'rgba(220,210,205,1)'; ctx.fillRect(0, 0, r.width, r.height);
+  ctx.globalCompositeOperation = 'source-over';
+  if (!done && typeof fxAdd === 'function' && !(typeof fxCalm === 'function' && fxCalm()) && Math.random() < 0.6) {
+    const p = P(); fxAdd({ k: 'p', x: p.x + (Math.random() - 0.5) * 18, y: p.y - 8 + Math.random() * 3, vx: 0.4 + Math.random() * 0.4, vy: 0.8 + Math.random() * 0.6, g: 0, life: 4000, size: 1.4 + Math.random(), c: Math.random() < 0.85 ? '#b8b0a8' : '#ff8a3a', shape: 'dust' });
+  }
+});
+// the journal, the world map
+try { const _jp = jParent; jParent = function (id) { return id === 'ashvale' ? 'wilds' : _jp.apply(this, arguments); }; } catch (e) { }
+try { if (typeof WORLD !== 'undefined') WORLD.push(['ashvale', 'Ashvale', 470, 200, 'surface', 3]); } catch (e) { }
+{
+  const _jq = jQuests;
+  jQuests = function () {
+    const out = _jq.apply(this, arguments);
+    try {
+      const a = S.story.ashvale;
+      if (S.story.halvard && a !== 'done') out.push({ id: 'ashvale', group: 'Main quest', kicker: 'Ashvale', title: !a ? 'Go home to Ashvale' : a === 'arrived' ? 'Find the reeve’s house' : 'Lay Ashvale to rest',
+        desc: !a ? 'Your family’s village, three days over the cliff road from the east side of the North Road. Nobody has been back in eighteen years.' : a === 'arrived' ? 'Your grandfather Aldren’s house was on the north side of the village. The chimney is still standing.' : `Lay the restless dead to rest${S.maps.ashvale ? ` (${S.maps.ashvale.mons.filter(o => o.id === 'ash_wraith').length} left)` : ''}, then raise a cairn in the square: five stones.`,
+        target: !a ? (S.maps.wilds && S.maps.wilds.cliffRoad ? { map: 'wilds', x: S.maps.wilds.w - 1, y: 12 } : { map: 'wilds', x: 0, y: 0, far: 1 }) : a === 'arrived' && S.maps.ashvale ? { map: 'ashvale', x: S.maps.ashvale.hearth[0], y: S.maps.ashvale.hearth[1] } : S.maps.ashvale ? { map: 'ashvale', x: S.maps.ashvale.cairnAt[0], y: S.maps.ashvale.cairnAt[1] } : null });
+    } catch (e) { }
+    return out;
+  };
+}
+try {
+  ACHIEVEMENTS.push(['ashvale', 'Homecoming', 'Go home to Ashvale.', () => !!S.story.ashvale, 'explore']);
+  ACHIEVEMENTS.push(['ashvale2', 'We Loved You First', 'Find what your mother hid under the hearthstone.', () => ['letter', 'done'].includes(S.story.ashvale), 'explore']);
+  ACHIEVEMENTS.push(['ashvale3', 'Ashvale Remembered', 'Raise a cairn for Ashvale.', () => S.story.ashvale === 'done', 'life']);
+  if (typeof REACTIONS !== 'undefined') REACTIONS.push([() => S.story.ashvale === 'done', ['“Berta says you went to Ashvale. She hasn’t stopped crying, but it’s the good kind.”', '“A cairn, they say. For all of them. That was well done.”']]);
+} catch (e) { }
+// fast travel straight to Ashvale lands you on the road in
+try { const _wa = wArrive; wArrive = function (id) { if (id === 'ashvale') { if (!S.maps.ashvale) S.maps.ashvale = buildAshvale(); return goMap('ashvale', 2, 18); } return _wa.apply(this, arguments); }; } catch (e) { }
+
+</script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
