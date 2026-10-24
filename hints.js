@@ -27,7 +27,7 @@ function tipTick() {
   for (const [id, test, text] of TIPS) {
     if (seen[id]) continue; let ok = false; try { ok = !!test(); } catch (e) { }
     if (!ok) continue;
-    seen[id] = S.day; msg(`Tip: ${text}`, 'news'); if (typeof cxToast === 'function') cxToast('Tip', text.split(/[.:]/)[0], 'beast');
+    seen[id] = S.day; msg(`Tip: ${text}`, 'news'); showTip(text);
     return; // one at a time
   }
 }
@@ -37,3 +37,18 @@ setInterval(() => { try { tipTick(); } catch (e) { } }, 2500);
   htmlOptions = function () { return _ho.apply(this, arguments).replace('<h3>Performance</h3>', `<h3>Tips</h3><label class="opt"><input type="checkbox" data-tips="1" ${TIPS_ON ? 'checked' : ''}><span><b>Show tips</b><small>A short word the first time you meet each part of the game.</small></span></label><h3>Performance</h3>`); };
 }
 document.addEventListener('change', e => { const b = e.target.closest('[data-tips]'); if (!b) return; TIPS_ON = b.checked; try { localStorage.setItem('tw-tips', TIPS_ON ? '1' : '0'); } catch (er) { } });
+
+// a small card in the corner, never over the middle of the map: it fades by itself, or tap ✕
+let tipTimer = 0;
+function showTip(text) {
+  let el = document.getElementById('tipcard');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'tipcard'; el.setAttribute('role', 'status');
+    el.addEventListener('click', e => { if (e.target.closest('.tip-x')) hideTip(); });
+    (document.querySelector('.game') || document.body).appendChild(el);
+  }
+  el.innerHTML = `<span class="tip-k">Tip</span><span class="tip-t">${esc(text)}</span><button class="tip-x" aria-label="Dismiss tip">✕</button>`;
+  el.classList.add('show'); clearTimeout(tipTimer);
+  tipTimer = setTimeout(hideTip, Math.min(12000, 4000 + text.length * 45));
+}
+function hideTip() { const el = document.getElementById('tipcard'); if (el) el.classList.remove('show'); clearTimeout(tipTimer); }

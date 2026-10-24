@@ -841,6 +841,18 @@ body.phone .slot-body b { font-size: 15px; }
 .ck-ing .ok { color: var(--good); } .ck-ing .no { color: var(--faint); }
 .gold-t { color: var(--gold); white-space: nowrap; }
 .fn-spot h4 { margin: 12px 0 4px; font: 600 13px var(--display); color: var(--gold); }
+/* tips: a quiet card in the corner */
+#tipcard { position: absolute; left: 20px; top: 150px; width: min(320px, calc(100vw - 40px)); z-index: 7; display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 12px; background: rgba(20, 16, 28, 0.9); border: 1px solid rgba(201, 167, 255, 0.35); box-shadow: 0 6px 18px rgba(0,0,0,0.4); font-size: 12.5px; line-height: 1.4; opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .3s, transform .3s; }
+#tipcard.show { opacity: 1; transform: none; pointer-events: auto; }
+#tipcard .tip-k { flex: none; font: 700 10px var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--news); margin-top: 2px; }
+#tipcard .tip-t { flex: 1; color: var(--ink); }
+#tipcard .tip-x { flex: none; border: 0; background: rgba(255,255,255,0.08); color: var(--dim); width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+body.phone #tipcard { left: var(--sl); right: 46px; width: auto; top: calc(var(--hudb, 70px) + 40px); font-size: 11.5px; padding: 6px 8px; }
+body.phone #tipcard.show ~ #log, body.phone:has(#tipcard.show) #log { opacity: 0; }
+/* on a phone, banners slide in at the very top instead of over the middle */
+body.phone .cx-toast { top: calc(var(--top) + 2px); bottom: auto; transform: translate(-50%, -150%); padding: 5px 12px; }
+body.phone .cx-toast.show { transform: translate(-50%, 0); }
+body.phone .cx-toast b { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -962,7 +974,7 @@ body.phone .slot-body b { font-size: 15px; }
 <script src="mount.js?v=2221bf90"></script>
 <script src="housing.js?v=2793af26"></script>
 <script src="soundscape.js?v=8e7a66e1"></script>
-<script src="hints.js?v=eb326610"></script>
+<script src="hints.js?v=0d9a1245"></script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
