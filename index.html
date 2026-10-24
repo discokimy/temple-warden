@@ -24099,6 +24099,63 @@ setInterval(() => {
 }, 400);
 
 </script>
+<script>/* hooks.js */
+// One place where the later systems plug into the game, instead of each wrapping the core functions again.
+//   onEnter(fn(id, from))      after you arrive on a map
+//   onBump(fn(dx, dy))         before a step or bump; return true if you handled it (the step doesn't happen)
+//   onTrigger(fn(tr))          before something you touch acts; return true if you handled it
+//   onKill(fn(mon, info))      after a monster dies; info = { live, t, map } as it was before it died
+//   onBeforeKill(fn(mon))      just before a monster dies
+//   onTurn(fn())               after each turn
+//   onDraw(fn(view))           after the map is drawn; view = { r, ox, oy } for drawing over it
+// Handlers that can "handle" something run newest-first, so a later system can step in before an earlier one,
+// exactly as the old wrappers did. The rest run in the order they were added.
+
+const HOOKS = { enter: [], bump: [], trigger: [], kill: [], beforeKill: [], turn: [], draw: [] };
+const onEnter = fn => HOOKS.enter.push(fn), onBump = fn => HOOKS.bump.push(fn), onTrigger = fn => HOOKS.trigger.push(fn);
+const onKill = fn => HOOKS.kill.push(fn), onBeforeKill = fn => HOOKS.beforeKill.push(fn), onTurn = fn => HOOKS.turn.push(fn), onDraw = fn => HOOKS.draw.push(fn);
+const hookErr = (name, e) => { try { console.error('[hook ' + name + ']', e); } catch (er) { } };
+{
+  const _gm = goMap;
+  goMap = function (id) {
+    const from = S && S.mapId; const r = _gm.apply(this, arguments);
+    for (const fn of HOOKS.enter) { try { fn(id, from); } catch (e) { hookErr('enter', e); } }
+    return r;
+  };
+  const _act = act;
+  act = function (dx, dy) {
+    if (S && !modalOpen && !dead && (dx || dy)) for (let i = HOOKS.bump.length - 1; i >= 0; i--) { try { if (HOOKS.bump[i](dx, dy)) return; } catch (e) { hookErr('bump', e); } }
+    return _act.apply(this, arguments);
+  };
+  const _dt = doTrigger;
+  doTrigger = function (tr) {
+    if (tr) for (let i = HOOKS.trigger.length - 1; i >= 0; i--) { try { if (HOOKS.trigger[i](tr)) return; } catch (e) { hookErr('trigger', e); } }
+    return _dt.apply(this, arguments);
+  };
+  const _km = killMonster;
+  killMonster = function (mon) {
+    const map = S && curMap(), live = !!(mon && map && map.mons.includes(mon)), info = { live, t: mon && MONSTERS[mon.id], map };
+    if (live) for (const fn of HOOKS.beforeKill) { try { fn(mon, info); } catch (e) { hookErr('beforeKill', e); } }
+    const r = _km.apply(this, arguments);
+    if (live) for (const fn of HOOKS.kill) { try { fn(mon, info); } catch (e) { hookErr('kill', e); } }
+    return r;
+  };
+  const _et = endTurn;
+  endTurn = function () {
+    const r = _et.apply(this, arguments);
+    for (const fn of HOOKS.turn) { try { fn(); } catch (e) { hookErr('turn', e); } }
+    return r;
+  };
+  const _rm = renderMap;
+  renderMap = function () {
+    _rm.apply(this, arguments);
+    if (!S || !HOOKS.draw.length) return;
+    let view; try { const r = cvs.getBoundingClientRect(), [ox, oy] = viewOffset(r.width, r.height); view = { r, ox, oy }; } catch (e) { return; }
+    for (const fn of HOOKS.draw) { ctx.save(); try { fn(view); } catch (e) { hookErr('draw', e); } ctx.restore(); }
+  };
+}
+
+</script>
 <script>/* codex.js */
 // The Codex: a bestiary of every creature you have met, an encyclopedia of every item and material you have
 // found, and a book of achievements. Opened with E, or the book button in the dock.
@@ -24197,15 +24254,7 @@ function cxRes(t) {
 }
 
 // ---------- tracking ----------
-if (typeof killMonster === 'function') {
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const live = S && curMap().mons.includes(mon);
-    const r = _km.apply(this, arguments);
-    if (live) { const c = cxState(); c.kills[mon.id] = (c.kills[mon.id] || 0) + 1; c.seen[mon.id] = 1; cxCheck(); }
-    return r;
-  };
-}
+onKill((mon, info) => { const live = info.live; if (live) { const c = cxState(); c.kills[mon.id] = (c.kills[mon.id] || 0) + 1; c.seen[mon.id] = 1; cxCheck(); } });
 if (typeof addItem === 'function') {
   const _ai = addItem;
   addItem = function (it) { const r = _ai.apply(this, arguments); const c = cxState(); if (c && it && it.id && !c.it[it.id]) { c.it[it.id] = 1; cxNew('item', it.id); } return r; };
@@ -24523,10 +24572,7 @@ if (typeof cast === 'function') {
   const _ca = cast;
   cast = function () { const mp = S ? P().mp : 0; const r = _ca.apply(this, arguments); if (S && P().mp < mp) cxSt('spells'); return r; };
 }
-if (typeof goMap === 'function') {
-  const _gm = goMap;
-  goMap = function (id) { const was = S && S.mapId; const r = _gm.apply(this, arguments); try { const c = cxState(); if (c && id !== was) { c.places = c.places || {}; if (!c.places[id]) { c.places[id] = 1; } cxSt('travels'); } } catch (e) { } return r; };
-}
+onEnter((id, was) => { try { const c = cxState(); if (c && id !== was) { c.places = c.places || {}; if (!c.places[id]) { c.places[id] = 1; } cxSt('travels'); } } catch (e) { } });
 if (typeof die === 'function') {
   const _die = die;
   die = function (cause) {
@@ -24850,10 +24896,7 @@ function jMarker() {
   if (wp.here && t.target.far) return null;
   return wp;
 }
-{
-  const _rm = renderMap;
-  renderMap = function () {
-    _rm.apply(this, arguments);
+onDraw(() => {
     try {
       if (!S || dead) return;
       const wp = jMarker(); if (!wp) return;
@@ -24879,8 +24922,7 @@ function jMarker() {
       }
       ctx.restore();
     } catch (e) { }
-  };
-}
+});
 {
   const _dm = drawMinimap;
   drawMinimap = function () {
@@ -25133,25 +25175,17 @@ function seasonalDecor(m) {
     }
   }
 }
-{
-  const _goMap = goMap;
-  goMap = function (id) { const r = _goMap.apply(this, arguments); if (id === 'town' && S && S.maps.town) { decorateTown(S.maps.town); render(); } return r; };
-}
+onEnter(id => { if (id === 'town' && S && S.maps.town) { decorateTown(S.maps.town); render(); } });
 setInterval(() => { try { if (S && S.maps && S.maps.town && S.maps.town.planted) { const m = S.maps.town, was = m.decorated, ws = m.seasonDecor; decorateTown(m); if ((!was || ws !== m.seasonDecor) && S.mapId === 'town') render(); } } catch (e) { } }, 1500);
 
 // the fountain has a few things to say
-if (typeof doTrigger === 'function') {
-  const _dt = doTrigger;
-  doTrigger = function (tr) {
-    if (tr && tr.dlg === 'fountain') {
+onTrigger(tr => {
+    if (tr.dlg !== 'fountain') return false;
       const p = P();
       if (p.gold >= 1 && !(S.story.wishDay === S.day)) { S.story.wishDay = S.day; p.gold -= 1; msg('You toss a copper into the fountain and make a wish. The water chuckles over it.', 'talk'); if (typeof sfx === 'function') sfx('splash'); if (Math.random() < 0.12) { p.gold += 5; msg('Something glints beside your copper: an old silver piece someone dropped long ago. You fish it out. (+5 gold)', 'gold'); } }
       else msg('The fountain splashes in the square, cold and clear, fed from springs under the temple hill. Coins glint on the bottom.', 'talk');
-      return;
-    }
-    return _dt.apply(this, arguments);
-  };
-}
+    return true;
+});
 
 // ---------------- bunting between the lamp posts ----------------
 function buntingRuns(m) {
@@ -25171,10 +25205,7 @@ function buntingRuns(m) {
   return (m.bunting = runs);
 }
 const BUNT = ['#c0392b', '#f2c94c', '#2e86c1', '#f4f0e6', '#27ae60', '#8e44ad'];
-{
-  const _rm = renderMap;
-  renderMap = function () {
-    _rm.apply(this, arguments);
+onDraw(() => {
     try {
       if (!S || S.mapId !== 'town') return;
       const m = curMap(), r = cvs.getBoundingClientRect(), [ox, oy] = viewOffset(r.width, r.height), t = performance.now();
@@ -25199,8 +25230,7 @@ const BUNT = ['#c0392b', '#f2c94c', '#2e86c1', '#f4f0e6', '#27ae60', '#8e44ad'];
       }
       ctx.restore();
     } catch (e) { }
-  };
-}
+});
 
 </script>
 <script>/* dig.js */
@@ -25248,25 +25278,16 @@ function digAt(x, y) {
   endTurn(); render();
 }
 {
-  const _act = act;
-  act = function (dx, dy) {
-    try {
-      if (S && !modalOpen && !dead && (dx || dy)) {
+  onBump((dx, dy) => {
         const m = curMap(), p = P(), x = p.x + dx, y = p.y + dy;
         if (canDigHere(m, x, y) && !m.mons.some(o => o.x === x && o.y === y)) {
-          if (hasTool('pick')) { setFacing(p, dx, dy); if (typeof AC !== 'undefined') AC.dir = [dx, dy]; digAt(x, y); return; }
+          if (hasTool('pick')) { setFacing(p, dx, dy); if (typeof AC !== 'undefined') AC.dir = [dx, dy]; digAt(x, y); return true; }
           if (!m.noPickHint) { m.noPickHint = 1; msg('Solid rock. With a pickaxe from Wendell’s you could dig through it.', 'talk'); }
         }
-      }
-    } catch (e) { console.error(e); }
-    return _act.apply(this, arguments);
-  };
+  });
 }
 // cracks spread across the rock you are working on
-{
-  const _rm = renderMap;
-  renderMap = function () {
-    _rm.apply(this, arguments);
+onDraw(() => {
     try {
       const m = S && curMap(); if (!m || !m.dig) return;
       const r = cvs.getBoundingClientRect(), [ox, oy] = viewOffset(r.width, r.height), need = digNeeded();
@@ -25283,8 +25304,7 @@ function digAt(x, y) {
       }
       ctx.restore();
     } catch (e) { }
-  };
-}
+});
 
 </script>
 <script>/* templeworks.js */
@@ -25472,15 +25492,7 @@ const CRYPT_TOMBS = [
     return _tr.apply(this, arguments);
   };
 }
-{
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const was = mon && mon.id === 'c_bishop' && curMap().mons.includes(mon);
-    const r = _km.apply(this, arguments);
-    if (was) { S.bosses = S.bosses || {}; S.bosses.c_bishop = 1; msg('The Hollow Bishop comes apart like a dropped bundle of sticks. The cold goes out of the air. Somewhere far above, faintly, the temple bell sounds once on its own.', 'level'); }
-    return r;
-  };
-}
+onKill((mon, info) => { const was = info.live && mon.id === 'c_bishop'; if (was) { S.bosses = S.bosses || {}; S.bosses.c_bishop = 1; msg('The Hollow Bishop comes apart like a dropped bundle of sticks. The cold goes out of the air. Somewhere far above, faintly, the temple bell sounds once on its own.', 'level'); } });
 // the bestiary, the journal and the achievements learn about the catacombs
 try { CX_REGION.crypt = 'The Catacombs'; CX_REGION_ORDER.splice(CX_REGION_ORDER.indexOf('deep'), 0, 'crypt'); } catch (e) { }
 try {
@@ -25607,14 +25619,7 @@ function applyPeace(m) {
     if (ok && !o.angry) { o.peace = 1; o.hunting = 0; } else if (!ok && o.peace && !o.trader) o.peace = 0;
   }
 }
-{
-  const _gm = goMap;
-  goMap = function (id) {
-    const r = _gm.apply(this, arguments);
-    try { const m = curMap(); if (id === 'd2') addUnderStair(m); if (KINGDOMS[m.kind]) applyPeace(m); } catch (e) { }
-    return r;
-  };
-}
+onEnter(id => { try { const m = curMap(); if (id === 'd2') addUnderStair(m); if (KINGDOMS[m.kind]) applyPeace(m); } catch (e) { } });
 // the peaceful keep to themselves
 {
   const _ms = monsterStep;
@@ -25625,16 +25630,10 @@ function applyPeace(m) {
 }
 // walking into one of them opens a parley; striking one breaks the peace
 {
-  const _act = act;
-  act = function (dx, dy) {
-    try {
-      if (S && !modalOpen && !dead && (dx || dy)) {
+  onBump((dx, dy) => {
         const m = curMap(), p = P(), mon = m.mons.find(o => o.x === p.x + dx && o.y === p.y + dy && o.peace);
-        if (mon) { setFacing(p, dx, dy); openParley(mon); return; }
-      }
-    } catch (e) { console.error(e); }
-    return _act.apply(this, arguments);
-  };
+        if (mon) { setFacing(p, dx, dy); openParley(mon); return true; }
+  });
   const _at = attack;
   attack = function (mon) { if (mon && mon.peace) breakPeace(mon); return _at.apply(this, arguments); };
 }
@@ -25691,18 +25690,13 @@ document.addEventListener('click', e => {
   refresh();
 });
 // the standing stone at the bottom of the Drowned Galleries
-{
-  const _dt = doTrigger;
-  doTrigger = function (tr) {
-    if (tr && tr.pol === 'stone') {
+onTrigger(tr => {
+    if (tr.pol !== 'stone') return false;
       const P_ = pol();
       if (!S.story.treatyStone) { S.story.treatyStone = 1; for (const k of KINGDOM_ORDER) P_.rep[k] = Math.min(5, P_.rep[k] + 1); msg('A great stone stands in the black water, cut with the crests of all four kingdoms and a fifth sign, a sun, over them all: the old treaty by which the four sealed the Wyrm away. You copy the words carefully. When the kingdoms hear you have seen it, they will treat you a little more as one of the parties to it. (+1 standing with every kingdom)', 'level'); }
       else msg('The treaty stone. Four kingdoms and a sun, and the words that sealed the door.', 'talk');
-      return;
-    }
-    return _dt.apply(this, arguments);
-  };
-}
+    return true;
+});
 
 // ---------------- the journal, the codex ----------------
 {
@@ -25861,16 +25855,10 @@ function placeCaptain(m) {
 }
 setInterval(() => { try { if (S && S.maps && S.maps.town) placeCaptain(S.maps.town); } catch (e) { } }, 2000);
 {
-  const _act = act;
-  act = function (dx, dy) {
-    try {
-      if (S && !modalOpen && !dead && (dx || dy)) {
+  onBump((dx, dy) => {
         const m = curMap(), p = P(), n = m.npcs.find(o => o.x === p.x + dx && o.y === p.y + dy && o.guild);
-        if (n) { setFacing(p, dx, dy); openGuild(n.guild); return; }
-      }
-    } catch (e) { console.error(e); }
-    return _act.apply(this, arguments);
-  };
+        if (n) { setFacing(p, dx, dy); openGuild(n.guild); return true; }
+  });
 }
 // Nib, at the Midden Market, keeps the Hand's business
 if (typeof openParley === 'function') {
@@ -26631,18 +26619,10 @@ function testimony(k, how) {
   openModal(`${KNAME(k)}: what they knew`, html + '<div class="btnrow"><button class="btn" data-a="close">Close</button></div>');
   msg(`You learn something in ${KINGDOMS[k].name}. (Journal updated)`, 'news');
 }
-{
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const live = mon && curMap().mons.includes(mon), t = live && MONSTERS[mon.id];
-    const r = _km.apply(this, arguments);
-    try {
+onKill((mon, info) => { const live = info.live, t = info.t; try {
       if (live && t.boss && KINGDOMS[t.home] && KINGDOMS[t.home].boss === mon.id) setTimeout(() => testimony(t.home, 'blood'), 400);
       if (live && mon.id === 'corvane') { S.story.corvane = 1; curMap().ground.push({ x: mon.x, y: mon.y, item: makeItem('greywatch_orders') }); msg('The Lord-Warden falls. Something sealed in grey wax slips from his coat.', 'level'); }
-    } catch (e) { }
-    return r;
-  };
-}
+    } catch (e) { } });
 // a ruler who gives you their seal in audience tells you too
 setInterval(() => { try { if (!S || !S.pol || !S.story.halvard) return; for (const k in S.pol.treaty) if (!st().testimony[k] && !modalOpen) { testimony(k, 'peace'); break; } } catch (e) { } }, 1500);
 // an old save that already holds seals catches up, quietly, the first time the journal is read
@@ -26725,8 +26705,7 @@ function placeWardens(m) {
 {
   const _gl = genLevel;
   genLevel = function (id) { const m = _gl.apply(this, arguments); if (id === 'deep') placeWardens(m); return m; };
-  const _gm = goMap;
-  goMap = function (id) { const r = _gm.apply(this, arguments); try { if (id === 'deep') { placeWardens(curMap()); if (!S.story.deepIn) { S.story.deepIn = 1; msg(S.story.voss === 'fled' ? 'Torchlight ahead, and grey cloaks. The Lord-Warden Corvane turns from the sleeping Wyrm, and beside him, smoothing a glove, stands Edric Voss.' : 'Torchlight ahead, and grey cloaks. The Lord-Warden Corvane turns from the sleeping Wyrm and smiles. “Thank you for the door, boy.”', 'warn'); } } } catch (e) { } return r; };
+  onEnter(id => { try { if (id === 'deep') { placeWardens(curMap()); if (!S.story.deepIn) { S.story.deepIn = 1; msg(S.story.voss === 'fled' ? 'Torchlight ahead, and grey cloaks. The Lord-Warden Corvane turns from the sleeping Wyrm, and beside him, smoothing a glove, stands Edric Voss.' : 'Torchlight ahead, and grey cloaks. The Lord-Warden Corvane turns from the sleeping Wyrm and smiles. “Thank you for the door, boy.”', 'warn'); } } } catch (e) { } });
 }
 
 // ---------- the Book of Dawn, with Saint Edda ----------
@@ -26737,7 +26716,7 @@ function placeBook(m) {
 }
 {
   const _gl = genLevel; genLevel = function (id) { const m = _gl.apply(this, arguments); if (id === 'cat3') placeBook(m); return m; };
-  const _gm = goMap; goMap = function (id) { const r = _gm.apply(this, arguments); try { if (id === 'cat3') placeBook(curMap()); } catch (e) { } return r; };
+  onEnter(id => { try { if (id === 'cat3') placeBook(curMap()); } catch (e) { } });
   const _ai = addItem; addItem = function (it) { const r = _ai.apply(this, arguments); try { if (it && it.id === 'book_dawn' && S && !S.story.book) { S.story.book = 1; setTimeout(() => msg('The Book of Dawn. Saint Edda’s own. Halvard was looking for this.', 'level'), 0); } } catch (e) { } return r; };
 }
 
@@ -26935,18 +26914,14 @@ function compTick() {
   }
 }
 {
-  const _et = endTurn;
-  endTurn = function () { const r = _et.apply(this, arguments); try { if (!(typeof AC !== 'undefined' && AC.on && !AC.ticking)) compTick(); } catch (e) { console.error(e); } return r; };
-  const _gm = goMap;
-  goMap = function (id) {
-    const r = _gm.apply(this, arguments);
+  onTurn(() => { try { if (!(typeof AC !== 'undefined' && AC.on && !AC.ticking)) compTick(); } catch (e) { console.error(e); } });
+  onEnter(id => {
     try {
       const c = cst(); if (c) { placeComp(); const d = COMPANIONS[c.id];
         if (d.sniff && !c.downDay && !c.wait) { const m = curMap(), p = P(); const near = (m.ground || []).filter(g => (g.item || g.gold) && Math.max(Math.abs(g.x - p.x), Math.abs(g.y - p.y)) <= 12); if (near.length && m.seen) { for (const g of near) m.seen[g.y * m.w + g.x] = 1; msg(`Shep puts his nose down and pulls toward something. (${near.length} thing${near.length > 1 ? 's' : ''} nearby marked on your map)`, 'talk'); } }
       }
     } catch (e) { }
-    return r;
-  };
+  });
 }
 // Ada takes a blow for you, now and then
 if (typeof monsterAttack === 'function') {
@@ -26960,20 +26935,14 @@ if (typeof monsterAttack === 'function') {
 
 // ---------- orders ----------
 {
-  const _act = act;
-  act = function (dx, dy) {
-    try {
-      if (S && !modalOpen && !dead && (dx || dy)) {
+  onBump((dx, dy) => {
         const m = curMap(), p = P(), x = p.x + dx, y = p.y + dy;
         const n = m.npcs.find(o => o.x === x && o.y === y);
-        if (n && n.comp) { setFacing(p, dx, dy); openCompOrders(); return; }
+        if (n && n.comp) { setFacing(p, dx, dy); openCompOrders(); return true; }
         // recruiting: the town dog, Linnet by the inn
-        if (n && n.prop === 'dog' && n.animal && !n.comp && m.id === 'town') { setFacing(p, dx, dy); return offerShep(n); }
-        if (n && n.linnet && !(cst() && cst().id === 'linnet')) { setFacing(p, dx, dy); return offerLinnet(); }
-      }
-    } catch (e) { console.error(e); }
-    return _act.apply(this, arguments);
-  };
+        if (n && n.prop === 'dog' && n.animal && !n.comp && m.id === 'town') { setFacing(p, dx, dy); return (offerShep(n), true); }
+        if (n && n.linnet && !(cst() && cst().id === 'linnet')) { setFacing(p, dx, dy); return (offerLinnet(), true); }
+  });
 }
 function openCompOrders() {
   const c = cst(), d = cdef(), n = compNpc();
@@ -27209,16 +27178,10 @@ if (typeof FIG_SPECS !== 'undefined' && typeof MON_FIG !== 'undefined') Object.a
 setInterval(() => { try { if (S) townMilestones(); } catch (e) { } }, 2500);
 // a kingdom trader in the square
 {
-  const _act = act;
-  act = function (dx, dy) {
-    try {
-      if (S && !modalOpen && !dead && (dx || dy)) {
+  onBump((dx, dy) => {
         const m = curMap(), p = P(), n = m.npcs.find(o => o.x === p.x + dx && o.y === p.y + dy && o.ktrader);
-        if (n) { setFacing(p, dx, dy); return openTownTrader(n.ktrader); }
-      }
-    } catch (e) { console.error(e); }
-    return _act.apply(this, arguments);
-  };
+        if (n) { setFacing(p, dx, dy); return (openTownTrader(n.ktrader), true); }
+  });
 }
 function openTownTrader(k) {
   const p = P();
@@ -27284,16 +27247,8 @@ function refill(m) {
   m.leftDay = day;
 }
 {
-  const _gm = goMap;
-  goMap = function (id) {
-    const from = S && S.mapId; const r = _gm.apply(this, arguments);
-    try { if (from && S.maps[from] && respawnable(S.maps[from])) S.maps[from].leftDay = S.day; if (id !== from) refill(curMap()); } catch (e) { }
-    return r;
-  };
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const live = mon && curMap().mons.includes(mon), champ = live && mon.champion;
-    const r = _km.apply(this, arguments);
+  onEnter((id, from) => { try { if (from && S.maps[from] && respawnable(S.maps[from])) S.maps[from].leftDay = S.day; if (id !== from) refill(curMap()); } catch (e) { } });
+  onKill((mon, info) => { const champ = info.live && mon.champion;
     try {
       if (champ) {
         const m = curMap(); m.ground.push({ x: mon.x, y: mon.y, item: randomLoot((m.depth || 1) + 3) }); m.ground.push({ x: mon.x, y: mon.y, gold: 30 + (m.depth || 1) * 15 });
@@ -27303,8 +27258,7 @@ function refill(m) {
         if (typeof cxBump === 'function') cxBump('champions');
       }
     } catch (e) { }
-    return r;
-  };
+  });
 }
 // the Market Board lists the bounties
 {
@@ -27423,20 +27377,14 @@ function dropLegend(m, x, y) {
   msg(`Something gleams among the remains: ${LEGENDS[id].name}. A legendary.`, 'level'); if (typeof sfx === 'function') { try { sfx('level'); } catch (e) { } }
   return true;
 }
-{
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const live = mon && curMap().mons.includes(mon), champ = live && mon.champion, t = live && MONSTERS[mon.id];
-    const r = _km.apply(this, arguments);
+onKill((mon, info) => { const live = info.live, champ = live && mon.champion, t = info.t;
     try {
       const m = curMap();
       if (champ && Math.random() < 0.15) dropLegend(m, mon.x, mon.y);
       if (live && t.boss && Math.random() < 0.35) dropLegend(m, mon.x, mon.y);
       if (live && (mon.id === 'corvane' || mon.id === 'c_bishop')) dropLegend(m, mon.x, mon.y);
     } catch (e) { }
-    return r;
-  };
-}
+});
 // the encyclopedia and bestiary know the legendaries; lore in the item window
 try {
   for (const id in LEGENDS) if (typeof ITEM_LORE !== 'undefined') ITEM_LORE[id] = LEGENDS[id].lore;
@@ -27499,22 +27447,13 @@ function openRootStair() {
   for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = spot[0] + dx, y = spot[1] + dy; if (tileAt(m, x, y) === '.' && !m.links[K(x, y)]) { setTile(m, x, y, '>'); m.links[K(x, y)] = 'x1'; if (S.mapId === 'deep') msg('Where the Wyrm lay, the stone has cracked open onto a stair going down. Far below, something breathes.', 'warn'); return; } }
 }
 {
-  const _km = killMonster;
-  killMonster = function (mon) {
-    const live = mon && curMap().mons.includes(mon);
-    if (live && mon.id === 'wyrm') curMap().wyrmAt = [mon.x, mon.y];
-    const r = _km.apply(this, arguments);
+  onBeforeKill(mon => { const live = true; if (live && mon.id === 'wyrm') curMap().wyrmAt = [mon.x, mon.y]; });
+  onKill((mon, info) => { const live = info.live;
     try {
       if (live && mon.echo) { const m = curMap(); m.ground.push({ x: mon.x, y: mon.y, item: randomLoot((m.depth || 11) + 4) }); if (typeof dropLegend === 'function' && Math.random() < 0.5) dropLegend(m, mon.x, mon.y); if (typeof cxBump === 'function') cxBump('echoes'); }
     } catch (e) { }
-    return r;
-  };
-  const _gm = goMap;
-  goMap = function (id) {
-    const r = _gm.apply(this, arguments);
-    try { if (id === 'deep') openRootStair(); const m = /^x\d+$/.test(id) && curMap(); if (m) { const c = cxState(); if (m.abyss > (c.n.abyss || 0)) { c.n.abyss = m.abyss; if (m.abyss % 5 === 0) msg(`Depth ${m.abyss}. Something old waits by the stair down.`, 'warn'); } } } catch (e) { }
-    return r;
-  };
+  });
+  onEnter(id => { try { if (id === 'deep') openRootStair(); const m = /^x\d+$/.test(id) && curMap(); if (m) { const c = cxState(); if (m.abyss > (c.n.abyss || 0)) { c.n.abyss = m.abyss; if (m.abyss % 5 === 0) msg(`Depth ${m.abyss}. Something old waits by the stair down.`, 'warn'); } } } catch (e) { } });
 }
 setInterval(() => { try { if (S && S.story && S.story.ending) openRootStair(); } catch (e) { } }, 3000);
 
@@ -27631,14 +27570,8 @@ function rideCheck() {
   else if (!S.pony.on && S.pony.resume && !hostile && rideable()) { S.pony.on = true; S.pony.resume = false; msg('You swing back up into the saddle.', 'talk'); render(); }
 }
 {
-  const _gm = goMap;
-  goMap = function (id) {
-    const r = _gm.apply(this, arguments);
-    try { if (S.pony) { if (!rideable() && S.pony.on) { S.pony.on = false; S.pony.resume = true; msg('You leave the pony tied up outside.', 'talk'); } else if (rideable() && S.pony.resume) { S.pony.on = true; S.pony.resume = false; } } } catch (e) { }
-    return r;
-  };
-  const _et = endTurn;
-  endTurn = function () { const r = _et.apply(this, arguments); try { rideCheck(); } catch (e) { } return r; };
+  onEnter(id => { try { if (S.pony) { if (!rideable() && S.pony.on) { S.pony.on = false; S.pony.resume = true; msg('You leave the pony tied up outside.', 'talk'); } else if (rideable() && S.pony.resume) { S.pony.on = true; S.pony.resume = false; } } } catch (e) { } });
+  onTurn(() => { try { rideCheck(); } catch (e) { } });
 }
 function toggleRide() {
   if (!S || !S.pony) { msg('You don’t have a pony. The drovers’ barn on the east side of town has them.', 'talk'); return; }
@@ -27646,13 +27579,7 @@ function toggleRide() {
   S.pony.on = !S.pony.on; S.pony.resume = false; msg(S.pony.on ? `You mount ${S.pony.name}.` : `You get down from ${S.pony.name}.`, 'talk'); render();
 }
 // buying one at the barn
-{
-  const _dt = doTrigger;
-  doTrigger = function (tr) {
-    if (tr && tr.kind === 'barn' && S.mapId === 'town') return openBarn();
-    return _dt.apply(this, arguments);
-  };
-}
+onTrigger(tr => { if (tr.kind === 'barn' && S.mapId === 'town') { openBarn(); return true; } return false; });
 function openBarn() {
   const p = P();
   openModal('The drovers’ barn', `<p class="lead">Hay to the rafters and the warm smell of animals. A drover leans on the half-door. “After a pony? Sure-footed, good on the North Road, won’t go underground for love nor money. ${PONY_PRICE} gold.”</p>
@@ -27754,14 +27681,11 @@ function enterHouse() {
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-house]'); if (!b || !S) return; closeModal(true); enterHouse(); });
 // inside: the ledger, the bed
-{
-  const _dt = doTrigger;
-  doTrigger = function (tr) {
-    if (tr && tr.furnish) return openFurnish();
-    if (tr && tr.homebed) { if (typeof rest === 'function') { if (confirm('Sleep until morning?')) rest('home'); } return; }
-    return _dt.apply(this, arguments);
-  };
-}
+onTrigger(tr => {
+  if (tr.furnish) { openFurnish(); return true; }
+  if (tr.homebed) { if (typeof rest === 'function') { if (confirm('Sleep until morning?')) rest('home'); } return true; }
+  return false;
+});
 function openFurnish() {
   const draw = () => {
     const H = house(), p = P();
