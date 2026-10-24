@@ -950,9 +950,9 @@ function los(m, x0, y0, x1, y1) {
 }
 const canSee = (x, y) => curMap().lit || vis.has(K(x, y));
 const monVisible = mon => canSee(mon.x, mon.y) && (!MONSTERS[mon.id].invisible || mon.revealed || cheb(mon, P()) <= 1 || buff('waters'));
-const mname = mon => MONSTERS[mon.id].name;
-const The = mon => MONSTERS[mon.id].boss ? cap(mname(mon)) : 'The ' + mname(mon);
-const the = mon => MONSTERS[mon.id].boss ? mname(mon) : 'the ' + mname(mon);
+const mname = mon => mon.ename || MONSTERS[mon.id].name;
+const The = mon => MONSTERS[mon.id].boss || mon.ename ? cap(mname(mon)) : 'The ' + mname(mon);
+const the = mon => MONSTERS[mon.id].boss || mon.ename ? mname(mon) : 'the ' + mname(mon);
 
 // ================= turn loop =================
 function act(dx, dy) {
