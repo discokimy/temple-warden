@@ -853,6 +853,16 @@ body.phone #tipcard.show ~ #log, body.phone:has(#tipcard.show) #log { opacity: 0
 body.phone .cx-toast { top: calc(var(--top) + 2px); bottom: auto; transform: translate(-50%, -150%); padding: 5px 12px; }
 body.phone .cx-toast.show { transform: translate(-50%, 0); }
 body.phone .cx-toast b { font-size: 13px; }
+.cp-lv{display:flex;align-items:center;gap:10px;margin:12px 0 4px}
+.cp-lv .cp-bar{flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
+.cp-lv .cp-bar i{display:block;height:100%;background:linear-gradient(90deg,#6fa8dc,#bfe3ff);border-radius:5px}
+.cp-lv small{opacity:.7;font-variant-numeric:tabular-nums}
+#keepcard { position: absolute; right: 74px; bottom: 20px; width: min(340px, calc(100vw - 40px)); z-index: 7; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(18, 22, 34, 0.94); border: 1px solid rgba(140, 190, 255, 0.4); box-shadow: 0 6px 18px rgba(0,0,0,0.45); font-size: 12.5px; line-height: 1.4; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .3s, transform .3s; }
+#keepcard.show { opacity: 1; transform: none; pointer-events: auto; }
+#keepcard .kc-ic { font-size: 20px; color: #9fd0f5; }
+#keepcard .kc-t { flex: 1; min-width: 160px; color: var(--ink); }
+#keepcard .kc-b { display: flex; gap: 6px; margin-left: auto; }
+body.phone #keepcard { left: var(--sl); right: var(--sr); width: auto; bottom: auto; top: calc(var(--hudb, 70px) + 40px); }
 </style>
 </head>
 <body>
@@ -26839,7 +26849,9 @@ const cst = () => S && S.comp && COMPANIONS[S.comp.id] ? S.comp : null;
 const cdef = () => cst() ? COMPANIONS[S.comp.id] : null;
 const propPic = name => (NATIVE_PROPS[name] ? nativePropCanvas(name) : propCanvas(name));
 const compName = () => { const c = cst(); if (!c) return ''; return c.id === 'acolyte' ? 'Acolyte ' + (c.aname || 'Wynn') : COMPANIONS[c.id].name; };
-const compMaxHp = () => { const d = cdef(); return d ? d.hp + (P().level - 1) * 3 : 0; };
+const compLv = () => (S.comp && S.comp.lv) || 1;
+const compGearBonus = k => { const g = (S.comp && S.comp.gear) || {}; if (k === 'dmg') { const w = g.weapon && ITEMS[g.weapon.id]; return w && w.dmg ? Math.round((w.dmg[0] + w.dmg[1]) / 2 / 2) + (g.weapon.ench || 0) : 0; } if (k === 'def') { const a = g.armor && ITEMS[g.armor.id]; return a ? (a.def || 0) + (g.armor.ench || 0) : 0; } return 0; };
+const compMaxHp = () => { const d = cdef(); return d ? d.hp + (P().level - 1) * 3 + (compLv() - 1) * 6 : 0; };
 function compNpc(m) { return (m || curMap()).npcs.find(n => n.comp); }
 function compHere() { const c = cst(); return c && !(c.downDay && c.downDay >= S.day) ? compNpc() : null; }
 // Shep isn't in the square while he's out with you; he's back by the well when he goes home
@@ -26882,7 +26894,7 @@ function compTick() {
   const hit = (o, dmgMul = 1) => {
     const t = MONSTERS[o.id];
     if (Math.random() < 0.72 + (d.atk - t.def) * 0.03) {
-      const dm = Math.max(1, Math.round(roll(d.dmg[0], d.dmg[1]) * dmgMul + Math.floor(p.level / 2)));
+      const dm = Math.max(1, Math.round((roll(d.dmg[0], d.dmg[1]) + compGearBonus('dmg')) * dmgMul * (1 + 0.12 * (compLv() - 1)) + Math.floor(p.level / 2)));
       o.hp -= dm; o.angry = 1; o.hunting = 8; addFloat(o.x, o.y, dm, '#9fd0f5');
       if (o.hp <= 0) { msg(`${compName()} ${d.verb} ${the(o)}, and it falls.`, 'kill'); if (typeof gainXp === 'function') gainXp(Math.round(t.xp * 0.5)); killMonster(o); }
     }
@@ -26909,7 +26921,7 @@ function compTick() {
   for (const o of m.mons) {
     if (!hostile(o) || cheb(o, n) > 1 || cheb(o, p) <= 1 || Math.random() > 0.4) continue;
     const t = MONSTERS[o.id]; if (Math.random() > 0.65 - (d.def - t.atk) * 0.03) continue;
-    const dm = Math.max(1, roll(t.dmg[0], t.dmg[1]) - Math.floor(d.def / 3)); c.hp -= dm; addFloat(n.x, n.y, dm, '#ff6b6f');
+    const dm = Math.max(1, roll(t.dmg[0], t.dmg[1]) - Math.floor((d.def + compGearBonus('def')) / 3)); c.hp -= dm; addFloat(n.x, n.y, dm, '#ff6b6f');
     if (c.hp <= 0) { c.downDay = S.day; msg(`${compName()} is knocked down, and limps away home. They’ll be back tomorrow.`, 'bad'); placeComp(); return; }
   }
 }
@@ -28577,6 +28589,399 @@ try {
   ACHIEVEMENTS.push(['festival', 'Feast Day', 'Take part in a festival.', () => !!(S.fest && Object.keys(S.fest.done || {}).length), 'life']);
   ACHIEVEMENTS.push(['ribbon', 'Blue Ribbon', 'Win a festival contest.', () => (cxState().n.festwins || 0) >= 1, 'life']);
 } catch (e) { }
+
+</script>
+<script>/* companions2.js */
+// Companions, deeper: they level up from the fights you share, wear the gear you give them (and you can see it on
+// them), and they talk: a word when you arrive somewhere new, when you're badly hurt, on a feast day, in the dark.
+
+const COMP_XP = lv => 40 * lv * lv;
+function compGainXp(n) {
+  const c = S.comp; if (!c) return;
+  c.xp = (c.xp || 0) + n; c.lv = c.lv || 1;
+  while (c.xp >= COMP_XP(c.lv)) { c.xp -= COMP_XP(c.lv); c.lv++; c.hp = compMaxHp(); msg(`${compName()} grows stronger. (Level ${c.lv})`, 'level'); const n0 = compNpc(); if (n0 && typeof fxColumn === 'function') { fxColumn(n0.x, n0.y, 'rgba(160,210,255,0.55)', 1200); fxBurst(n0.x, n0.y, { n: 18, colors: ['#9fd0f5', '#e8f8ff'], speed: 1.2, life: 1100, gravity: -1.2, up: 1.2, shape: 'star' }); } compSay('levelup'); }
+}
+// a share of every kill made near them
+onKill((mon, info) => { try { const c = S.comp, n = compNpc(); if (!c || !n || c.wait || c.downDay) return; if (cheb(mon, n) <= 6 || cheb(mon, P()) <= 4) compGainXp(Math.round((info.t.xp || 0) * 0.6)); } catch (e) { } });
+
+// ---------------- gear: what they carry, and how they look ----------------
+const COMP_CAN = { shep: [], ada: ['weapon', 'armor'], linnet: ['weapon', 'armor'], acolyte: ['armor'] };
+const COMP_BASE = {};
+function compLook() {
+  const c = S.comp; if (!c || typeof FIG_SPECS === 'undefined' || !COMP_CAN[c.id] || c.id === 'acolyte') return;   // the acolyte borrows the priest's figure: leave it be
+  const d = COMPANIONS[c.id], g = c.gear || {}, spec = d.spr && FIG_SPECS[d.spr]; if (!spec) return;
+  if (!COMP_BASE[d.spr]) COMP_BASE[d.spr] = JSON.stringify(spec);
+  const base = JSON.parse(COMP_BASE[d.spr]); for (const k in spec) delete spec[k]; Object.assign(spec, base);
+  if (g.weapon && ITEMS[g.weapon.id]) spec.held = ITEMS[g.weapon.id].cls;
+  const a = g.armor && ITEMS[g.armor.id];
+  if (a) {
+    const pal = typeof gearPal === 'function' ? gearPal(g.armor) : [];
+    if (a.cls === 'robe') { spec.torso = 'robe'; delete spec.armor; spec.shirt = pal[1] || 'd8cfb8'; }
+    else if (a.cls === 'leather') { spec.armor = 'leather'; spec.shirt = pal[1] || '8f5d2c'; }
+    else { spec.armor = a.cls; spec.shirt = pal[1] || (a.cls === 'plate' ? 'dfe6ec' : 'b8bfc6'); spec.sleeve = shadeHex(spec.shirt, 0.88); }
+  }
+}
+function giveGear(uid) {
+  const c = S.comp, p = P(), it = p.inv.find(i => String(i.uid) === String(uid)); if (!c || !it) return;
+  const t = T(it), slot = t.slot === 'weapon' ? 'weapon' : t.cat === 'armor' && t.slot === 'armor' ? 'armor' : null;
+  if (!slot || !(COMP_CAN[c.id] || []).includes(slot)) return;
+  c.gear = c.gear || {}; if (c.gear[slot]) p.inv.push(c.gear[slot]);
+  p.inv = p.inv.filter(i => i !== it); c.gear[slot] = it; compLook();
+  msg(`You give ${compName()} the ${itemName(it)}.`, 'good'); compSay('gift');
+}
+function takeGear(slot) { const c = S.comp; if (!c || !c.gear || !c.gear[slot]) return; P().inv.push(c.gear[slot]); delete c.gear[slot]; compLook(); }
+setInterval(() => { try { if (S && S.comp) compLook(); } catch (e) { } }, 3000);
+// the orders window, fuller
+{
+  const _oc = openCompOrders;
+  openCompOrders = function () {
+    _oc.apply(this, arguments);
+    const c = S.comp; if (!c) return;
+    const lv = c.lv || 1, can = COMP_CAN[c.id] || [], g = c.gear || {}, p = P();
+    const pct = Math.round(((c.xp || 0) / COMP_XP(lv)) * 100);
+    const gearRows = can.map(slot => `<div class="row"><div class="nm"><b>${slot === 'weapon' ? 'Weapon' : 'Armour'}</b><small>${g[slot] ? esc(itemName(g[slot])) : 'nothing given'}</small></div><div class="acts">${g[slot] ? `<button class="btn tiny ghost" data-cg2="take:${slot}">Take back</button>` : ''}</div></div>`).join('');
+    const offers = p.inv.filter(i => { const t = T(i); return (can.includes('weapon') && t.slot === 'weapon') || (can.includes('armor') && t.cat === 'armor' && t.slot === 'armor'); }).slice(0, 12);
+    const b = $('#modal-body'); if (!b) return;
+    b.insertAdjacentHTML('beforeend', `<div class="cp-lv"><b>Level ${lv}</b><span class="cp-bar"><i style="width:${pct}%"></i></span><small>${c.xp || 0} / ${COMP_XP(lv)}</small></div>
+      ${can.length ? `<h3>Gear</h3><div class="list">${gearRows}</div>${offers.length ? `<p class="dim">Give from your pack:</p><div class="cr2-chips">${offers.map(i => `<button data-cg2="give:${i.uid}">${esc(itemName(i))}</button>`).join('')}</div>` : '<p class="dim">Nothing in your pack they could use.</p>'}` : `<p class="dim">${compName()} doesn’t carry gear, but grows stronger with every fight you share.</p>`}`);
+  };
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-cg2]'); if (!b || !S) return; const [k, v] = b.dataset.cg2.split(':'); if (k === 'give') giveGear(v); else takeGear(v); closeModal(true); openCompOrders(); });
+
+// ---------------- talk ----------------
+const BANTER = {
+  shep: { arrive: { cave: ['Shep sniffs the dark and whines, very quietly.'], forest: ['Shep is off after a smell and back again, delighted.'], town: ['Shep greets every dog in Brambleford personally.'], crypt: ['Shep’s hackles go up and stay up.'], ashvale: ['Shep lies down by the cairn stones and won’t be hurried.'] }, hurt: ['Shep licks your hand and pushes his head under it.'], levelup: ['Shep looks very pleased with himself.'], gift: ['Shep wags.'], festival: ['Someone has tied a ribbon round Shep’s neck.'], night: ['Shep presses close against your legs.'] },
+  ada: { arrive: { cave: ['“Torch high. Eyes up. Don’t touch anything that glistens.”'], forest: ['“Wolves this side of the stream. Stay off the skyline.”'], town: ['“Quiet day. Good. I don’t trust quiet days.”'], crypt: ['“I don’t like the dead. They don’t bleed right.”'], kingdom: ['“Goblins. Rats. Snakes. My granddad would’ve laughed at me.”'], deep: ['“Whatever happens down here, Warden: it’s been an honour.”'], ashvale: ['Brask takes her helmet off, and keeps it off.'] }, hurt: ['“You’re bleeding. Stay behind me.”', '“Drink something. Now.”'], levelup: ['“Hale’s going to have to give me a raise.”'], gift: ['“Good steel. I’ll bring it back with blood on it.”'], festival: ['“Off duty. Mostly. Pass me one of those pies.”'], night: ['“Hale says I sleep with one eye open. Both, actually.”'] },
+  linnet: { arrive: { cave: ['“I hate caves. You can’t see a shot coming.”'], forest: ['“Now this is more like it.” She strings her bow without looking.'], town: ['“Your town’s nice. Loud. Nice.”'], crypt: ['“If one of them gets up, I’m leaving.”'], ashvale: ['Linnet walks to the Fletchers’ house and stands in the doorway for a long time.'], deep: ['“Three arrows left. Make them count, Linnet.”'] }, hurt: ['“Get back! I’ve got you covered!”'], levelup: ['“Hah. Still got it.”'], gift: ['“Oh, that’s lovely. I’ll pay you back. Probably.”'], festival: ['“An archery contest? Stand back.”'], night: ['“Stars are good out here. You don’t get stars in Thornbury.”'] },
+  acolyte: { arrive: { cave: ['“Aurel, keep us in your light down here.”'], forest: ['“The birds are so loud!”'], town: ['“Everyone’s looking at us. Is that good?”'], crypt: ['“These are our dead. I should have come down sooner.”'], ashvale: ['Your acolyte begins the rites for the dead before you can ask.'] }, hurt: ['“Hold still. Let me.”'], levelup: ['“I think I’m getting the hang of this.”'], gift: ['“For me? Truly?”'], festival: ['“The bell rang for the feast! Did you hear?”'], night: ['“Halvard used to say the night is just the day resting.”'] },
+};
+let compBubble = null;
+function compSay(kind, place) {
+  const c = S.comp, n = compNpc(); if (!c || !n || c.downDay || c.wait) return;
+  const B = BANTER[c.id]; if (!B) return;
+  const pool = kind === 'arrive' ? (B.arrive[place] || null) : B[kind]; if (!pool || !pool.length) return;
+  const now = Date.now(); if (kind !== 'levelup' && kind !== 'gift' && c.lastTalk && now - c.lastTalk < 60000) return;
+  c.lastTalk = now; const line = pick(pool);
+  compBubble = { text: line.replace(/^“|”$/g, ''), t0: performance.now(), quote: line.startsWith('“') };
+  msg(line.startsWith('“') ? `${compName()}: ${line}` : line, 'talk');
+}
+onEnter(id => {
+  if (!S.comp) return;
+  const kind = id === 'town' ? 'town' : /^f\d/.test(id) || id === 'wilds' ? 'forest' : /^cat/.test(id) ? 'crypt' : id === 'ashvale' ? 'ashvale' : id === 'deep' || /^x\d+$/.test(id) ? 'deep' : /^[grhs]\d$/.test(id) ? 'kingdom' : /^(d|n)\d$/.test(id) ? 'cave' : null;
+  if (kind && Math.random() < 0.6) setTimeout(() => compSay('arrive', kind), 600);
+  if (id === 'town' && typeof festToday === 'function' && festToday()) setTimeout(() => compSay('festival'), 1500);
+});
+onTurn(() => { try { const p = P(); if (S.comp && p.hp < maxHp() * 0.3 && Math.random() < 0.3) compSay('hurt'); if (S.comp && typeof dayLight === 'function' && dayLight().night > 0.7 && Math.random() < 0.01) compSay('night'); } catch (e) { } });
+// the speech bubble over their head
+onDraw(view => {
+  if (!compBubble) return; const age = performance.now() - compBubble.t0; if (age > 4200) { compBubble = null; return; }
+  const n = compNpc(); if (!n) return;
+  const v = typeof visualPos === 'function' ? visualPos(n) : n, { ox, oy } = view, x = ox + (v.x + 0.5) * TS, y = oy + (v.y - 0.9) * TS;
+  const a = Math.min(1, age / 200, (4200 - age) / 400), text = compBubble.text.length > 54 ? compBubble.text.slice(0, 52) + '…' : compBubble.text;
+  ctx.globalAlpha = a; ctx.font = `${compBubble.quote ? '600' : 'italic 500'} ${Math.max(11, Math.round(TS * 0.26))}px Figtree, sans-serif`;
+  const w = Math.min(ctx.measureText(text).width + 16, TS * 7), h = Math.max(20, TS * 0.5);
+  ctx.fillStyle = 'rgba(20,16,28,0.88)'; ctx.strokeStyle = 'rgba(255,236,200,0.35)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x, y + 6); ctx.lineTo(x + 5, y); ctx.fill();
+  ctx.fillStyle = '#f4ecdf'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y - h / 2, w - 12);
+});
+try { ACHIEVEMENTS.push(['complv', 'Old Friends', 'Raise a companion to level 5.', () => S.comp && (S.comp.lv || 1) >= 5, 'life']); } catch (e) { }
+
+</script>
+<script>/* sound2.js */
+// Sound, second pass: real instruments and a real room.
+// - A convolution reverb built from shaped noise, wetter in caves, crypts and the temple, drier out on the road.
+// - Plucked strings (Karplus–Strong: a burst of noise fed round a short, softening delay), a breathy flute,
+//   a slow string pad, and an FM bell, all made in the browser.
+// - Music that has chords and a tune: a melody that walks the scale in phrases over a changing chord, an
+//   instrument for each place (lute in town, flute in the wilds, choir and bells at the temple, low harp in the deep,
+//   drums and a driving bass in a fight, a reel at the festival).
+// - Fuller effects: weightier hits, a crunch on a big one, a real bell, coins that ring.
+'use strict';
+
+// ---------------- the room ----------------
+function s2Impulse(c, secs, decay) {
+  const n = Math.floor(c.sampleRate * secs), b = c.createBuffer(2, n, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 90 ? i / 90 : 1); } }
+  return b;
+}
+function s2Setup() {
+  if (!SND.ctx || SND.conv) return;
+  const c = SND.ctx;
+  SND.conv = c.createConvolver(); SND.conv.buffer = s2Impulse(c, 2.6, 3.2);
+  SND.wet = c.createGain(); SND.wet.gain.value = 0.25;
+  const tone2 = c.createBiquadFilter(); tone2.type = 'lowpass'; tone2.frequency.value = 5200;
+  SND.conv.connect(tone2); tone2.connect(SND.wet); SND.wet.connect(SND.master);
+  // move the music and ambience off the old slap-back delay, onto the room; give effects a little of it too
+  try { SND.mus.disconnect(SND.verb); SND.amb.disconnect(SND.verb); } catch (e) { }
+  SND.sfxSend = c.createGain(); SND.sfxSend.gain.value = 0.35;
+  SND.mus.connect(SND.conv); SND.amb.connect(SND.conv); SND.sfx.connect(SND.sfxSend); SND.sfxSend.connect(SND.conv);
+  // a gentle glue on the whole mix so stacked sounds don't clip
+  const comp = c.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.2;
+  try { SND.master.disconnect(); } catch (e) { }
+  SND.master.connect(comp); comp.connect(c.destination);
+}
+function s2RoomWet() {
+  try {
+    const m = S && curMap(); if (!m) return 0.22;
+    if (m.id === 'temple' || /^cat\d/.test(m.id) || /^x\d+$/.test(m.id) || m.id === 'deep') return 0.75;
+    if (!m.outdoor && !m.lit) return 0.6;          // caves
+    if (!m.outdoor) return 0.32;                   // rooms
+    return 0.16;                                   // open air
+  } catch (e) { return 0.22; }
+}
+setInterval(() => { try { if (SND.ctx && !SND.conv) s2Setup(); if (SND.wet) SND.wet.gain.setTargetAtTime(s2RoomWet(), SND.ctx.currentTime, 0.8); } catch (e) { } }, 500);
+
+// ---------------- instruments ----------------
+const PLUCK_CACHE = new Map();
+function pluckBuf(freq, bright = 0.5) {
+  const key = Math.round(freq) + ':' + bright; let b = PLUCK_CACHE.get(key); if (b) return b;
+  const c = SND.ctx, sr = c.sampleRate, n = Math.floor(sr * 2.2), P0 = Math.max(2, Math.round(sr / freq));
+  b = c.createBuffer(1, n, sr); const d = b.getChannelData(0), ring = new Float32Array(P0);
+  for (let i = 0; i < P0; i++) ring[i] = Math.random() * 2 - 1;
+  // a softer pick: smooth the first burst a little
+  for (let k = 0; k < 2; k++) for (let i = 1; i < P0; i++) ring[i] = ring[i] * (0.5 + bright / 2) + ring[i - 1] * (0.5 - bright / 2);
+  let idx = 0; const damp = 0.996 - (1 - bright) * 0.004;
+  for (let i = 0; i < n; i++) { const a = ring[idx], nx = ring[(idx + 1) % P0]; d[i] = a; ring[idx] = (a + nx) * 0.5 * damp; idx = (idx + 1) % P0; }
+  if (PLUCK_CACHE.size > 160) PLUCK_CACHE.clear();
+  PLUCK_CACHE.set(key, b); return b;
+}
+function pluck(freq, { vol = 0.2, at = 0, out = 'mus', bright = 0.5, dur = 2, pan = 0 } = {}) {
+  if (!SND.ctx) return; const c = SND.ctx, t = sNow() + at, s = c.createBufferSource(), g = c.createGain();
+  s.buffer = pluckBuf(freq, bright); g.gain.setValueAtTime(vol, t); g.gain.setTargetAtTime(0.0001, t + dur * 0.7, dur * 0.15);
+  let last = g; if (c.createStereoPanner && pan) { const p = c.createStereoPanner(); p.pan.value = pan; g.connect(p); last = p; }
+  s.connect(g); last.connect(SND[out]); s.start(t); s.stop(t + dur + 0.3);
+}
+function flute(freq, dur, { vol = 0.06, at = 0, out = 'mus' } = {}) {
+  if (!SND.ctx) return; const c = SND.ctx, t = sNow() + at, o = c.createOscillator(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+  o.type = 'sine'; o.frequency.value = freq; lfo.frequency.value = 5.2; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(freq * 0.008, t + dur * 0.5);
+  lfo.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.09); g.gain.setValueAtTime(vol, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  const o2 = c.createOscillator(), g2 = c.createGain(); o2.type = 'sine'; o2.frequency.value = freq * 2; g2.gain.value = 0.18; o2.connect(g2); g2.connect(g);
+  o.connect(g); g.connect(SND[out]); for (const x of [o, o2, lfo]) { x.start(t); x.stop(t + dur + 0.05); }
+  hiss(Math.min(0.25, dur), { f: freq * 2.5, q: 2.5, vol: vol * 0.35, attack: 0.03, out, at });   // breath
+}
+function pad(freqs, dur, { vol = 0.035, at = 0, out = 'mus', cutoff = 1400, wave = 'sawtooth' } = {}) {
+  if (!SND.ctx) return; const c = SND.ctx, t = sNow() + at, g = c.createGain(), f = c.createBiquadFilter();
+  f.type = 'lowpass'; f.frequency.setValueAtTime(cutoff * 0.5, t); f.frequency.linearRampToValueAtTime(cutoff, t + dur * 0.5); f.frequency.linearRampToValueAtTime(cutoff * 0.6, t + dur); f.Q.value = 0.4;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(1.2, dur * 0.35)); g.gain.setValueAtTime(vol, t + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  f.connect(g); g.connect(SND[out]);
+  for (const fr of freqs) for (const det of [-7, 7]) { const o = c.createOscillator(); o.type = wave; o.frequency.value = fr; o.detune.value = det + (Math.random() * 4 - 2); o.connect(f); o.start(t); o.stop(t + dur + 0.05); }
+}
+function fmBell(freq, dur, { vol = 0.08, at = 0, out = 'mus', ratio = 3.5, index = 2.2 } = {}) {
+  if (!SND.ctx) return; const c = SND.ctx, t = sNow() + at, car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), g = c.createGain();
+  car.frequency.value = freq; mod.frequency.value = freq * ratio;
+  mg.gain.setValueAtTime(freq * index, t); mg.gain.exponentialRampToValueAtTime(freq * 0.05, t + dur * 0.6);
+  mod.connect(mg); mg.connect(car.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  car.connect(g); g.connect(SND[out]); car.start(t); mod.start(t); car.stop(t + dur + 0.05); mod.stop(t + dur + 0.05);
+}
+function drum(kind, { vol = 0.25, at = 0, out = 'mus' } = {}) {
+  if (!SND.ctx) return;
+  if (kind === 'kick') { tone(110, 0.22, { type: 'sine', vol, slide: 0.35, out, at, m2: 1 }); }
+  else if (kind === 'tom') { tone(170, 0.18, { type: 'sine', vol: vol * 0.8, slide: 0.6, out, at, m2: 1 }); hiss(0.05, { f: 900, vol: vol * 0.25, out, at, m2: 1 }); }
+  else if (kind === 'tap') { hiss(0.04, { f: 5200, q: 1.2, vol: vol * 0.35, type: 'bandpass', out, at, m2: 1 }); }
+  else if (kind === 'tamb') { hiss(0.12, { f: 7000, q: 0.8, vol: vol * 0.3, type: 'highpass', out, at, m2: 1 }); for (let i = 0; i < 3; i++) tone(srnd(5000, 7000), 0.04, { type: 'square', vol: vol * 0.02, out, at: at + i * 0.012, m2: 1 }); }
+}
+
+// ---------------- music ----------------
+// the old phrase-maker is retired: anything it sends to the music bus is dropped, and this one plays instead
+{
+  const _tone = tone;
+  tone = function (f, d, o) { if (o && o.out === 'mus' && !o.m2 && SND.v2) return; return _tone.call(this, f, d, o); };
+}
+SND.v2 = true;
+const ORCH = {
+  town:     { lead: 'pluck', bed: 'pad', bass: 'pluck', beat: 0, bright: 0.55 },
+  festival: { lead: 'pluck', bed: 0, bass: 'pluck', beat: 'reel', bright: 0.7 },
+  market:   { lead: 'pluck', bed: 0, bass: 'pluck', beat: 'tap', bright: 0.65 },
+  home:     { lead: 'pluck', bed: 'pad', bass: 0, beat: 0, bright: 0.4 },
+  wild:     { lead: 'flute', bed: 'pad', bass: 'pluck', beat: 0, bright: 0.45 },
+  temple:   { lead: 'bell', bed: 'choir', bass: 0, beat: 0 },
+  deep:     { lead: 'harp', bed: 'drone', bass: 0, beat: 0, bright: 0.35 },
+  crypt:    { lead: 'bell', bed: 'drone', bass: 0, beat: 0 },
+  abyss:    { lead: 'bell', bed: 'drone', bass: 0, beat: 0 },
+  battle:   { lead: 'pluck', bed: 0, bass: 'drive', beat: 'war', bright: 0.8 },
+};
+const M2 = { beat: 0, deg: 0, chord: 0, rest: 0, mood: null };
+const nfreq = (sc, idx) => { const L = sc.steps.length, oct = Math.floor(idx / L), st = sc.steps[((idx % L) + L) % L] + 12 * oct; return sc.root * Math.pow(2, st / 12); };
+function m2Tick() {
+  let wait = 600;
+  try {
+    const tt = $('#title'), onTitle = tt && !tt.hidden, mood = onTitle ? 'temple' : (typeof musicMood === 'function' ? musicMood() : null);
+    const sc = SCALES[mood] || SCALES.town, O = ORCH[mood] || ORCH.town, beatLen = sc.tempo * 1000; wait = beatLen;
+    if (mood !== M2.mood) { M2.mood = mood; M2.beat = 0; M2.deg = 2; M2.rest = 1; }
+    if (SND.ctx && SND.ctx.state === 'running' && !SND.vol.muted && SND.vol.mus > 0 && mood) {
+      const b = M2.beat, bar = Math.floor(b / 8), L = sc.steps.length, m2 = true;
+      // a new chord every bar: I, IV, V, vi (or i, iv, v, VI in a minor scale), chosen loosely
+      if (b % 8 === 0) {
+        const prog = [0, 3, 4, 5, 0, 5, 3, 4]; M2.chord = Math.min(L - 1, prog[bar % prog.length] % L);
+        const ch = [M2.chord, M2.chord + 2, M2.chord + 4].map(i => nfreq(sc, i)), len = sc.tempo * 8.2;
+        if (O.bed === 'pad') pad(ch.map(f => f / 2), len, { vol: 0.022, cutoff: 1200 });
+        if (O.bed === 'choir') pad(ch.map(f => f / 2), len, { vol: 0.028, cutoff: 900, wave: 'triangle' });
+        if (O.bed === 'drone') { pad([sc.root / 2, sc.root * 0.75], len, { vol: 0.03, cutoff: 500, wave: 'triangle' }); }
+      }
+      // bass on the strong beats
+      if (O.bass === 'pluck' && b % 4 === 0) pluck(nfreq(sc, M2.chord) / 2, { vol: 0.16, bright: 0.3, dur: sc.tempo * 3.5, m2 });
+      if (O.bass === 'drive' && b % 1 === 0) pluck(nfreq(sc, M2.chord) / (b % 2 ? 2 : 4), { vol: 0.12, bright: 0.6, dur: sc.tempo * 1.2 });
+      // drums
+      if (O.beat === 'war') { if (b % 4 === 0 || b % 8 === 6) drum('kick', { vol: 0.3 }); if (b % 4 === 2) drum('tom', { vol: 0.22 }); drum('tap', { vol: 0.12 }); }
+      if (O.beat === 'reel') { if (b % 2 === 0) drum('kick', { vol: 0.18 }); else drum('tamb', { vol: 0.2 }); }
+      if (O.beat === 'tap' && b % 2 === 1) drum('tap', { vol: 0.1 });
+      // the tune: phrases of a few notes walking the scale, leaning toward the chord, then a breath
+      if (M2.rest > 0) M2.rest--;
+      else {
+        const toward = M2.chord + [0, 2, 4][Math.floor(Math.random() * 3)] + L;
+        M2.deg += Math.random() < 0.6 ? Math.sign(toward - M2.deg) * (Math.random() < 0.7 ? 1 : 2) : (Math.random() < 0.5 ? -1 : 1);
+        M2.deg = Math.max(L - 2, Math.min(L * 2 + 2, M2.deg));
+        const f = nfreq(sc, M2.deg), held = Math.random() < 0.25 ? 2 : 1;
+        if (O.lead === 'pluck') pluck(f, { vol: 0.13, bright: O.bright, dur: sc.tempo * 3, pan: srnd(-0.2, 0.2) });
+        if (O.lead === 'harp') pluck(f / 2, { vol: 0.12, bright: O.bright, dur: sc.tempo * 5 });
+        if (O.lead === 'flute') flute(f, sc.tempo * (held + 0.6), { vol: 0.045 });
+        if (O.lead === 'bell' && Math.random() < 0.55) fmBell(f, sc.tempo * 5, { vol: 0.04, ratio: mood === 'abyss' ? 2.76 : 3.5 });
+        // a little grace note now and then, for the lute
+        if (O.lead === 'pluck' && Math.random() < 0.12) pluck(nfreq(sc, M2.deg + 1), { vol: 0.07, bright: O.bright, at: sc.tempo * 0.5, dur: sc.tempo * 2 });
+        if (Math.random() < (mood === 'temple' || mood === 'deep' || mood === 'crypt' ? 0.3 : 0.16)) M2.rest = 1 + Math.floor(Math.random() * 3);
+        if (held > 1) M2.beat++;
+      }
+    }
+    M2.beat++;
+  } catch (e) { }
+  setTimeout(m2Tick, wait * (0.97 + Math.random() * 0.06));
+}
+setTimeout(m2Tick, 1500);
+
+// ---------------- effects, fuller ----------------
+Object.assign(SFX, {
+  hit(big) {
+    tone(big ? 80 : 110, 0.16, { type: 'sine', vol: 0.45, slide: 0.45 });
+    hiss(0.08, { f: big ? 1100 : 1600, q: 0.8, vol: 0.28 });
+    hiss(0.04, { f: 3800, q: 2, vol: 0.12, at: 0.005 });
+    if (big) { hiss(0.18, { f: 600, q: 0.6, vol: 0.22, at: 0.02, sweep: 0.5, type: 'lowpass' }); fmBell(srnd(900, 1200), 0.35, { vol: 0.035, out: 'sfx', ratio: 1.41, index: 3 }); }
+  },
+  kill() { tone(130, 0.3, { type: 'sine', vol: 0.32, slide: 0.35 }); hiss(0.3, { f: 450, q: 0.6, vol: 0.18, sweep: 0.35, type: 'lowpass' }); hiss(0.12, { f: 2400, q: 1, vol: 0.06, at: 0.18 }); },
+  swing() { hiss(0.18, { f: 500, q: 2.2, vol: 0.22, attack: 0.05, sweep: 4 }); hiss(0.1, { f: 3000, q: 3, vol: 0.05, attack: 0.04, at: 0.04, sweep: 0.6 }); },
+  bell() { fmBell(196, 4.5, { vol: 0.16, out: 'sfx', ratio: 2.0, index: 1.2 }); fmBell(392, 3.8, { vol: 0.09, out: 'sfx', ratio: 3.5, index: 1.6 }); fmBell(587, 2.6, { vol: 0.04, out: 'sfx', ratio: 2.76, index: 1 }); tone(98, 4, { type: 'sine', vol: 0.08, attack: 0.01 }); },
+  coins() { for (let i = 0; i < 4; i++) fmBell(srnd(2200, 3200), 0.25, { vol: 0.035, out: 'sfx', ratio: 1.47, index: 1.5, at: i * srnd(0.035, 0.07) }); },
+  pickup() { pluck(660, { vol: 0.14, out: 'sfx', bright: 0.7, dur: 0.6 }); pluck(990, { vol: 0.1, out: 'sfx', bright: 0.7, at: 0.06, dur: 0.6 }); },
+  level() { [523, 659, 784, 1046, 1318].forEach((f, i) => { pluck(f, { vol: 0.14, out: 'sfx', bright: 0.7, at: i * 0.08, dur: 1.4 }); }); pad([261.6, 329.6, 392, 523.2], 2.2, { vol: 0.03, out: 'sfx', cutoff: 2600, at: 0.3 }); fmBell(1046, 2.2, { vol: 0.05, out: 'sfx', at: 0.42 }); },
+  heal() { [523, 659, 784, 1046].forEach((f, i) => fmBell(f, 1.2, { vol: 0.05, out: 'sfx', ratio: 2, index: 0.8, at: i * 0.07 })); pad([523, 784], 1.4, { vol: 0.02, out: 'sfx', cutoff: 3000, wave: 'triangle' }); },
+  cast() { for (let i = 0; i < 6; i++) fmBell(660 * Math.pow(1.26, i % 4) * (i > 3 ? 2 : 1), 0.6, { vol: 0.03, out: 'sfx', ratio: 1.5, index: 2, at: i * 0.04 }); hiss(0.55, { f: 4200, q: 3, vol: 0.07, attack: 0.1, sweep: 0.4 }); },
+  pray() { pad([392, 494, 587], 2.4, { vol: 0.03, out: 'sfx', cutoff: 1600, wave: 'triangle' }); fmBell(784, 2, { vol: 0.03, out: 'sfx', at: 0.4 }); },
+  hurt() { tone(150, 0.2, { type: 'sawtooth', vol: 0.1, slide: 0.55 }); hiss(0.12, { f: 650, vol: 0.2 }); tone(70, 0.18, { type: 'sine', vol: 0.25, slide: 0.6 }); },
+  click() { pluck(1400, { vol: 0.05, out: 'sfx', bright: 0.9, dur: 0.12 }); },
+  twang() { pluck(srnd(150, 180), { vol: 0.22, out: 'sfx', bright: 0.85, dur: 0.5 }); hiss(0.14, { f: 2600, q: 1, vol: 0.12, attack: 0.02, sweep: 0.4 }); },
+});
+
+</script>
+<script>/* haptics.js */
+// Haptics: a small buzz in the hand when you land a blow, take one, level up or ring the bell.
+// Android browsers have navigator.vibrate. iPhone Safari doesn't, but since iOS 18 a switch-style checkbox gives
+// a tick of haptic feedback when it flips, so we keep a hidden one and flip it. (iPhone ticks are all one
+// strength; a "strong" one is two ticks close together.) Off in Options if you'd rather not.
+'use strict';
+
+const HAPT = { on: true, last: 0, sw: null };
+try { HAPT.on = localStorage.getItem('tw-haptic') !== 'off'; } catch (e) { }
+function haptSwitch() {
+  if (HAPT.sw) return HAPT.sw;
+  const lab = document.createElement('label'); lab.setAttribute('aria-hidden', 'true');
+  lab.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+  const inp = document.createElement('input'); inp.type = 'checkbox'; inp.setAttribute('switch', ''); inp.tabIndex = -1;
+  lab.addEventListener('click', e => e.stopPropagation()); inp.addEventListener('change', e => e.stopPropagation());
+  lab.appendChild(inp); document.body.appendChild(lab); HAPT.sw = lab; return lab;
+}
+function buzz(kind = 'light') {
+  if (!HAPT.on) return;
+  const now = performance.now(); if (now - HAPT.last < 70) return; HAPT.last = now;
+  const pat = { light: 12, medium: 25, strong: [30, 40, 30], level: [20, 60, 20, 60, 40], hurt: [40, 30, 20] }[kind] || 15;
+  try {
+    if (navigator.vibrate) { navigator.vibrate(pat); return; }
+    const sw = haptSwitch(); sw.click();
+    const n = Array.isArray(pat) ? Math.ceil(pat.length / 2) : 1;
+    for (let i = 1; i < n; i++) setTimeout(() => { try { sw.click(); } catch (e) { } }, i * 90);
+  } catch (e) { }
+}
+// every sound that ought to be felt, whether or not the sound is on
+{
+  const MAP = { hit: big => big ? 'strong' : 'medium', kill: () => 'medium', hurt: () => 'hurt', level: () => 'level', bell: () => 'medium', twang: () => 'light', thunk: () => 'light', thunder: () => 'medium', door: () => 'light' };
+  const _sfx = sfx;
+  sfx = function (name, ...a) { try { const f = MAP[name]; if (f) buzz(f(...a)); } catch (e) { } return _sfx.call(this, name, ...a); };
+}
+// in Options
+{
+  const _ho = htmlOptions;
+  htmlOptions = function () {
+    return `<h3>Feel</h3><label class="opt"><input type="checkbox" data-hapt="1" ${HAPT.on ? 'checked' : ''}><span><b>Haptics</b><small>A buzz on phones when you hit, get hurt or level up.${navigator.vibrate ? '' : ' (iPhone: needs iOS 18 or later.)'}</small></span></label>` + _ho();
+  };
+  document.addEventListener('change', e => { if (!e.target.dataset || !e.target.dataset.hapt) return; HAPT.on = e.target.checked; try { localStorage.setItem('tw-haptic', HAPT.on ? 'on' : 'off'); } catch (er) { } if (HAPT.on) buzz('medium'); });
+}
+
+</script>
+<script>/* cloudsave.js */
+// Keeping your hero safe off the phone. The home-screen copy saves only on the device, and clearing Safari's data
+// (or iOS tidying an unused web app away) would lose it. So: one tap sends the save file to the share sheet, where
+// "Save to Files" puts it in iCloud Drive (or AirDrop, Notes, mail…). The game remembers when you last did, and
+// if it's been a while it asks, gently, from the corner. Importing it back is in the same window.
+'use strict';
+
+const keptKey = () => 'tw-kept-' + saveSlot;
+function keptAt() { try { return +localStorage.getItem(keptKey()) || 0; } catch (e) { return 0; } }
+function markKept() { try { localStorage.setItem(keptKey(), Date.now()); localStorage.setItem(keptKey() + '-day', S ? S.day : 0); } catch (e) { } hideKeepCard(); }
+const canShareFiles = () => { try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.json', { type: 'application/json' })] })); } catch (e) { return false; } };
+
+async function shareSave() {
+  if (!S) return;
+  const data = JSON.stringify(Object.assign({ format: 'temple-warden-save', exported: Date.now(), json: serialize() }, slotSummary()));
+  if (canShareFiles()) {
+    try {
+      // a plain-text type: Files and iCloud accept it everywhere, and it opens anywhere too
+      await navigator.share({ files: [new File([data], saveFileName(), { type: 'application/json' })], title: 'Temple Warden save' });
+      markKept(); msg('Save sent. Choose “Save to Files” and iCloud Drive to keep it off the phone.', 'good'); return;
+    } catch (e) { if (e && e.name === 'AbortError') { msg('Not sent.'); return; } }
+  }
+  await exportSave(); markKept();
+}
+
+// ---------------- the reminder ----------------
+function hideKeepCard() { const el = document.getElementById('keepcard'); if (el) el.classList.remove('show'); }
+function showKeepCard(text) {
+  let el = document.getElementById('keepcard');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'keepcard'; el.setAttribute('role', 'status');
+    el.addEventListener('click', e => { if (e.target.closest('[data-keep="go"]')) shareSave(); else if (e.target.closest('[data-keep="later"]')) { try { localStorage.setItem(keptKey() + '-snooze', Date.now()); } catch (er) { } hideKeepCard(); } });
+    (document.querySelector('.game') || document.body).appendChild(el);
+  }
+  el.innerHTML = `<span class="kc-ic">☁</span><span class="kc-t">${esc(text)}</span><span class="kc-b"><button class="btn tiny" data-keep="go">Keep a copy</button><button class="btn tiny ghost" data-keep="later">Later</button></span>`;
+  el.classList.add('show');
+}
+function keepCheck() {
+  try {
+    if (!S || storeDb || dead || (typeof modalOpen !== 'undefined' && modalOpen)) return;   // inside claude.ai saves already live in the account
+    const at = keptAt(), sn = +localStorage.getItem(keptKey() + '-snooze') || 0, kd = +localStorage.getItem(keptKey() + '-day') || 0;
+    if (Date.now() - sn < 40 * 60000) return;
+    const days = S.day - kd, hrs = (Date.now() - at) / 3600000;
+    if (S.day < 3) return;
+    if (!at) showKeepCard('Your saves live only on this phone. Keep a copy in iCloud in case it’s ever cleared.');
+    else if (days >= 7 || hrs >= 72) showKeepCard(`${days >= 7 ? days + ' days in game' : Math.round(hrs / 24) + ' days'} since you last kept a copy of ${P().name}.`);
+  } catch (e) { }
+}
+setInterval(keepCheck, 90000);
+setTimeout(keepCheck, 20000);
+
+// ---------------- in the Save window ----------------
+{
+  const _hs = htmlSave;
+  htmlSave = function () {
+    const at = keptAt();
+    const share = canShareFiles();
+    return _hs() + `<h3>Save to iCloud</h3><p class="dim">${storeDb ? 'Here your saves are already kept in your claude.ai account. You can still keep a file of your own.' : 'The home-screen game keeps saves only on this device.'} ${share ? 'Send the save to the share sheet and pick <b>Save to Files → iCloud Drive</b>. On another device, open the game and use <b>Choose a save file</b> above.' : 'Export the file and keep it somewhere safe.'}</p>
+      <p>${at ? `Last copy kept ${timeAgo(at)}.` : 'No copy kept yet.'}</p>
+      <div class="btnrow"><button class="btn" data-keep="go">${share ? 'Send save to iCloud / Files' : 'Export save file'}</button></div>`;
+  };
+  document.addEventListener('click', e => { if (e.target.closest('#modal [data-keep="go"]')) shareSave(); });
+  document.addEventListener('click', e => { if (e.target.closest('[data-sv="export"],[data-sv="copy"]')) markKept(); });
+}
 
 </script>
 
