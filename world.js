@@ -123,7 +123,7 @@ function refill(m) {
   }
   if (!m.mons.some(o => o.champion) && Math.random() < 0.3) {
     const cands = m.mons.filter(o => !o.peace && !MONSTERS[o.id].boss && !o.champion && !MONSTERS[o.id].prey); const o = cands[cands.length - 1];
-    if (o) { makeChampion(o); (S.bounties = S.bounties || []).push({ map: m.id, uid: o.uid, name: o.ename, reward: 60 + (m.depth || 1) * 25, day }); msg(`Word reaches you that something bigger has moved into ${jName(m.id)}: ${o.ename}. (A bounty is posted on the Market Board)`, 'warn'); }
+    if (o) { makeChampion(o); (S.bounties = S.bounties || []).push({ map: m.id, uid: o.uid, name: o.ename, reward: 40 + (m.depth || 1) * 18, day }); msg(`Word reaches you that something bigger has moved into ${jName(m.id)}: ${o.ename}. (A bounty is posted on the Market Board)`, 'warn'); }
   }
   m.leftDay = day;
 }

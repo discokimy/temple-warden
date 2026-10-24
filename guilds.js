@@ -10,7 +10,7 @@ const GUILDS = {
     perks: ['', '10% off at Bran’s and Hilde’s.', 'The Watch’s shield: a sturdy buckler with the town’s ford on it.', 'The captain’s blade, and the town’s thanks.'] },
   hand: { name: 'The Quiet Hand', leader: 'Nib', ranks: ['Lookout', 'Lifter', 'Fence', 'Master of the Hand'], need: [0, 2, 5, 9], join: 50,
     pitch: '“Nib knows things. Nib moves things. Nib does not ask where things come from,” the ratkin whispers. “Fifty gold to join the Hand. Then Nib finds you work, and buys what others will not.”',
-    perks: ['', 'Nib buys your goods at 60% of their worth.', 'A shadowhide cloak that turns blows aside. Nib pays 75%.', 'Nib pays 90%, and the Hand owes you.'] },
+    perks: ['', 'Nib buys your goods at 45% of their worth, more than most shops.', 'A shadowhide cloak that turns blows aside. Nib pays 55%.', 'Nib pays 65%, and the Hand owes you.'] },
 };
 const WATCH_JOBS = [
   { id: 'wolves', title: 'Wolves on the North Road', ids: ['wolf'], n: 4, pay: 50, where: 'f1', desc: 'Drovers lost two sheep and nearly a boy. Thin out the wolves in the Whisperwood.' },
@@ -68,7 +68,7 @@ function openGuild(k) {
         html += `<div class="row"><div class="nm"><b>${job.title}</b><small>${job.desc}</small><small>${job.ids ? 'Killed' : 'Carrying'} ${Math.min(prog, job.n)}/${job.n} · ${job.pay} gold</small></div><div class="acts">${ready ? `<button class="btn tiny default" data-gd="turnin:${k}">${job.ids ? 'Report' : 'Hand over'}</button>` : ''}<button class="btn tiny ghost" data-gd="drop:${k}">Give up</button></div></div>`;
       }
       if (k === 'hand' && G.rank >= 1) {
-        const rate = G.rank >= 3 ? 0.9 : G.rank >= 2 ? 0.75 : 0.6;
+        const rate = G.rank >= 3 ? 0.65 : G.rank >= 2 ? 0.55 : 0.45;
         const goods = p.inv.filter(it => !Object.values(p.equip).includes(it) && T(it).cat !== 'story' && itemValue(it) > 0).slice(0, 30);
         html += `<h3>Nib buys <span class="dim">${Math.round(rate * 100)}% of worth</span></h3>${goods.length ? `<div class="list">${goods.map(it => itemRow(it, `<button class="btn tiny" data-gd="fence:${it.uid}">Sell ${Math.max(1, Math.floor(itemValue(it) * rate * (it.q || 1)))}</button>`)).join('')}</div>` : '<p class="dim">You carry nothing Nib wants.</p>'}`;
       }
@@ -101,7 +101,7 @@ document.addEventListener('click', e => {
     msg(`${job.title}: done. ${GUILDS[k].leader} pays you ${job.pay} gold.`, 'gold'); promote(k);
   } else if (v === 'fence') {
     const it = p.inv.find(o => String(o.uid) === x); if (!it) return;
-    const rate = G.rank >= 3 ? 0.9 : G.rank >= 2 ? 0.75 : 0.6, gold = Math.max(1, Math.floor(itemValue(it) * rate * (it.q || 1)));
+    const rate = G.rank >= 3 ? 0.65 : G.rank >= 2 ? 0.55 : 0.45, gold = Math.max(1, Math.floor(itemValue(it) * rate * (it.q || 1)));
     p.inv = p.inv.filter(o => o !== it); p.gold += gold; msg(`Nib takes the ${itemName(it)} and counts out ${gold} gold without looking at it twice.`, 'gold');
   }
   refresh();
