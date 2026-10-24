@@ -766,6 +766,51 @@ body.phone #modal-x { width: 40px; height: 40px; }
    map there (grey cobbles) made a grey bar; in the home-screen app it also sits behind the clock and battery */
 #topband { display: none; }
 body.phone #topband { display: block; position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 3px); background: #08060f; z-index: 8; pointer-events: none; }
+/* ---- character creation in three steps ---- */
+.creator2 { display: flex; flex-direction: column; gap: 10px; }
+.cr2-steps { display: flex; gap: 6px; }
+.cr2-steps button { flex: 1; font: 600 12px var(--body); padding: 7px 6px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--dim); cursor: pointer; }
+.cr2-steps button.on { border-color: var(--gold); color: var(--gold); background: rgba(242,184,75,0.1); }
+.cr2-steps button.done { color: var(--ink); }
+.cr2-top { display: flex; gap: 14px; align-items: center; }
+.cr2-stage { width: 132px; height: 150px; flex: none; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; border-radius: 14px; background: radial-gradient(ellipse at 50% 88%, rgba(242,184,75,0.3), rgba(20,16,28,0) 70%); }
+.cr2-stage img { margin-bottom: 8px; max-height: calc(100% - 8px); width: auto !important; }
+.cr2-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cr2-id .btnrow { margin: 0; align-items: center; }
+.cr2-l, .cr2-row label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.cr2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.cr2-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); min-height: 38px; }
+.cr2-row .swatches { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.cr2-row .swatches::-webkit-scrollbar { display: none; }
+.cr2-row .sw { flex: none; }
+.cr2-row .cycler span { font-size: 12.5px; }
+.cr2-sec .cr-row { padding: 7px 0; }
+.cr2-h { margin: 10px 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+.cr2-h .dim { font: 500 12px var(--body); }
+.cr2-attrs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cr2-attr { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+.cr2-attr b { display: block; font-size: 13px; } .cr2-attr small { color: var(--dim); font-size: 11px; line-height: 1.3; display: block; }
+.cr2-num { display: flex; align-items: center; gap: 6px; flex: none; }
+.cr2-num span { font: 700 18px var(--display); color: var(--gold-hi); min-width: 24px; text-align: center; }
+.cr2-note { margin: 4px 0 0; font-size: 11.5px; }
+.cr2-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.cr2-chips button { font: 600 12px var(--body); padding: 5px 10px; border-radius: 99px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--dim); cursor: pointer; }
+.cr2-chips button.on { border-color: var(--gold); color: var(--gold); background: rgba(242,184,75,0.12); }
+.cr2-gifts { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
+.cr2-gift { display: flex; gap: 10px; align-items: flex-start; text-align: left; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.03); color: var(--ink); padding: 8px 10px; cursor: pointer; font: inherit; }
+.cr2-gift.on { border-color: var(--gold); background: rgba(242,184,75,0.1); }
+.cr2-gift b { font-size: 13.5px; } .cr2-gift em { font-style: normal; font-size: 10.5px; color: var(--gold); margin-left: 4px; }
+.cr2-gift small { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.35; margin-top: 2px; }
+.cr2-pass { width: 28px; height: 28px; display: grid; place-items: center; color: var(--gold); font-size: 18px; }
+body.phone .cr2-grid { grid-template-columns: 1fr; }
+body.phone .cr2-row { min-height: 31px; padding: 1px 0; grid-template-columns: 58px minmax(0, 1fr); }
+body.phone .cr2-row .sw { width: 22px; height: 22px; } body.phone .cr2-row .swatches { gap: 6px; }
+body.phone .cr2-row .cycler .btn.tiny { padding: 3px 9px; }
+body.phone .cr2-stage { width: 88px; height: 100px; }
+body.phone .cr2-attrs { grid-template-columns: 1fr; }
+body.phone .cr2-steps button { font-size: 11px; padding: 6px 2px; }
+body.phone .creator2 { gap: 6px; }
+body.phone #modal-body:has(.creator2) { padding-top: 8px; }
 </style>
 </head>
 <body>
@@ -846,7 +891,7 @@ body.phone #topband { display: block; position: fixed; top: 0; left: 0; right: 0
 <script src="props.js?v=f5778775"></script>
 <script src="ambience.js?v=a053e73b"></script>
 <script src="skills.js?v=35a9b263"></script>
-<script src="game.js?v=d1bdb7d2"></script>
+<script src="game.js?v=c5a7f100"></script>
 <script src="estate.js?v=846ae928"></script>
 <script src="ctxmenu.js?v=0ec7617c"></script>
 <script src="walk.js?v=6f76ada2"></script>
@@ -877,6 +922,7 @@ body.phone #topband { display: block; position: fixed; top: 0; left: 0; right: 0
 <script src="a11y.js?v=0bc7c524"></script>
 <script src="lore.js?v=9993d6e0"></script>
 <script src="friends.js?v=3e663c5d"></script>
+<script src="creator2.js?v=bb87d95c"></script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>

@@ -2662,6 +2662,7 @@ const HOT_ITEMS = ['pheal', 'pgheal', 'pmana', 'pantidote', 'pstr', 'plife', 'sr
 function renderHotbar() {
   const p = P(); const s = [];
   if (p.equip.weapon) s.push({ kind: 'weapon', it: p.equip.weapon });
+  if (typeof giftSlot === 'function') { const gs = giftSlot(); if (gs) s.push(gs); }
   for (const id of HOT_ITEMS) { const it = p.inv.find(i => i.id === id); if (it) s.push({ kind: 'item', it }); }
   for (const sp of (p.favSpells || p.spells.slice(0, 4))) if (p.spells.includes(sp)) s.push({ kind: 'spell', id: sp });
   for (const g of GOD_ORDER) if (p.gods[g]) s.push({ kind: 'god', id: g });
@@ -2673,6 +2674,7 @@ function renderHotbar() {
     let img, count = '', title, dim = false, cool = '';
     if (h.kind === 'weapon' || h.kind === 'item') { img = icon(h.it); count = h.it.q > 1 ? h.it.q : ''; title = h.kind === 'weapon' ? `${itemName(h.it)} (equipped)` : itemName(h.it); }
     if (h.kind === 'spell') { img = spriteImg(spellIcon(h.id), 32); title = `${SPELLS[h.id].name}, ${spellCost(h.id)} MP`; dim = p.mp < spellCost(h.id); }
+    if (h.kind === 'gift') ({ img, title, dim, cool } = giftSlotView(h));
     if (h.kind === 'god') { img = spriteImg(propCanvas('shrine_' + h.id), 32); title = GODS[h.id].power.name; if (prayedOut(h.id)) { dim = true; cool = '<span class="cool">Tomorrow</span>'; } }
     return `<button class="hslot ${h.kind === 'weapon' ? 'equipped' : ''} ${dim ? 'dim' : ''}" data-a="hot" data-v="${i}" title="${esc(title)} (${k})" aria-label="${esc(title)}">${img}<span class="hk">${k}</span>${count ? `<span class="hc">${count}</span>` : ''}${cool}</button>`;
   }).join('');
@@ -2684,6 +2686,7 @@ function useHot(i) {
   if (h.kind === 'item') return useItem(h.it);
   if (h.kind === 'spell') return cast(h.id);
   if (h.kind === 'god') return invoke(h.id);
+  if (h.kind === 'gift') return useGift();
 }
 
 // ================= modals =================
