@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>window.LOAD_ERRORS = []; { let loaded = false; addEventListener('load', () => { loaded = true; }); addEventListener('error', e => { if (!loaded) LOAD_ERRORS.push((e.filename || '').split('/').pop() + ': ' + e.message); }); }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>The Temple Warden</title>
@@ -900,6 +901,8 @@ body.phone #ztip.lit { display: block; color: #ffd76a; border-color: #ffd76a; bo
 @keyframes tipPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0.55); } 70% { box-shadow: 0 0 0 10px rgba(255, 215, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 106, 0); } }
 #tipcard .tip-next { display: block; margin-top: 6px; border: 0; background: none; color: var(--gold, #ffcd6b); font: 600 12px Figtree, sans-serif; padding: 0; }
 body.phone kbd { display: none !important; }
+.pad-focus { outline: 3px solid #ffd76a !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(255, 215, 106, 0.18) !important; border-radius: 10px; }
+body.pad-on #joy, body.pad-on #phonepad { display: none !important; }
 </style>
 </head>
 <body>
@@ -23592,37 +23595,112 @@ function actionUi(show) {
 }
 
 // ---------------- game controllers ----------------
-// left stick or D-pad moves; A swing (hold for heavy), B dodge, LB/LT block, X pick up, RT shoot, RB first spell,
-// Y inventory, Start options, Back/Select the map
-const PAD = { prev: [], dir: null, lastNotice: 0 };
-window.addEventListener('gamepadconnected', e => { if (S) msg(`Controller connected: ${e.gamepad.id.replace(/\(.*\)/, '').trim() || 'gamepad'}. Left stick moves, A swings, B rolls, LB blocks.`, 'news'); });
+// Any standard controller (Backbone, Kishi, Xbox, PlayStation, Switch Pro) on a phone, tablet or computer.
+// Left stick or D-pad moves (push the stick all the way to run). A acts: talks, opens, gathers, or swings in a fight
+// (hold for a heavy blow). B dodges, LB/LT block, X picks up, Y opens your pack, RB casts your first spell, RT shoots,
+// R3 rests, Select/View opens the journal, Start/Menu the game menu.
+// In any window the D-pad or stick moves between buttons, A presses, B goes back, and LB/RB switch tabs.
+const PAD = { prev: [], dir: null, lastNotice: 0, navT: 0, focus: null, using: false };
+window.addEventListener('gamepadconnected', e => { if (S) msg(`Controller connected: ${e.gamepad.id.replace(/\(.*\)/, '').trim() || 'gamepad'}. A acts, B dodges, X takes, Y opens your pack, R3 rests, Start for the menu.`, 'news'); });
+// moving between buttons in a window or on the title screen
+function padScope() {
+  const m = document.getElementById('modal'); if (m && !m.hidden) return m;
+  const t = document.getElementById('title'); if (t && !t.hidden) return t;
+  return null;
+}
+function padTargets(scope) {
+  return [...scope.querySelectorAll('button:not([disabled]), [data-a], [data-v], a[href], input:not([type=hidden]), select, textarea, label.btn, [tabindex="0"]')]
+    .filter(el => { const r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[hidden]'); })
+    .filter((el, i, all) => !all.some(o => o !== el && o.contains(el)));
+}
+function padFocus(el) {
+  if (PAD.focus) PAD.focus.classList.remove('pad-focus');
+  PAD.focus = el; if (!el) return;
+  el.classList.add('pad-focus'); try { el.focus({ preventScroll: true }); } catch (e) { }
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function padMove(dx, dy) {
+  const scope = padScope(); if (!scope) return;
+  const all = padTargets(scope); if (!all.length) return;
+  const cur = PAD.focus && scope.contains(PAD.focus) && all.includes(PAD.focus) ? PAD.focus : null;
+  if (!cur) return padFocus(all[0]);
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bs = Infinity;
+  for (const el of all) {
+    if (el === cur) continue;
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, vx = x - ax, vy = y - ay;
+    const along = vx * dx + vy * dy; if (along <= 2) continue;
+    const across = Math.abs(vx * dy - vy * dx), sc = along + across * 2.2;
+    if (sc < bs) { bs = sc; best = el; }
+  }
+  if (best) padFocus(best);
+}
+function padPress() {
+  const el = PAD.focus; if (!el || !document.contains(el)) return padMove(0, 1);
+  if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) { el.click(); return; }
+  if (el.tagName === 'INPUT' && el.type === 'range') return;
+  el.click();
+  // the window may have redrawn: keep the cursor somewhere sensible
+  setTimeout(() => { if (PAD.focus && !document.contains(PAD.focus)) { PAD.focus = null; padMove(0, 1); } }, 60);
+}
+function padTab(dir) {
+  const scope = padScope(); if (!scope) return;
+  let tabs = [...scope.querySelectorAll('[role=tab]')].filter(t => t.offsetWidth);
+  if (tabs.length < 2) tabs = [...scope.querySelectorAll('.tabs button, .tab')].filter(t => t.offsetWidth);
+  if (tabs.length < 2) return;
+  const i = Math.max(0, tabs.findIndex(t => t.classList.contains('on') || t.getAttribute('aria-selected') === 'true'));
+  tabs[(i + dir + tabs.length) % tabs.length].click();
+  setTimeout(() => { PAD.focus = null; }, 0);
+}
+function padUsing(on) { if (PAD.using === on) return; PAD.using = on; document.body.classList.toggle('pad-on', on); }
+window.addEventListener('pointerdown', () => padUsing(false), { capture: true, passive: true });
 function padTick() {
   requestAnimationFrame(padTick);
-  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : []; if (!pads.length || !S) return;
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : []; if (!pads.length) return;
   const g = pads[0], b = i => !!(g.buttons[i] && (g.buttons[i].pressed || g.buttons[i].value > 0.5)), was = i => !!PAD.prev[i], down = i => b(i) && !was(i), up = i => !b(i) && was(i);
-  if (typeof sndInit === 'function' && g.buttons.some(x => x.pressed)) sndInit();
-  // movement: steer like a finger drag
+  if (g.buttons.some(x => x.pressed) || Math.hypot(g.axes[0] || 0, g.axes[1] || 0) > 0.5) { padUsing(true); if (typeof sndInit === 'function') sndInit(); }
   let x = g.axes[0] || 0, y = g.axes[1] || 0;
   if (b(14)) x = -1; if (b(15)) x = 1; if (b(12)) y = -1; if (b(13)) y = 1;
-  const mag = Math.hypot(x, y);
-  if (!modalOpen && mag > 0.45) {
-    const oct = Math.round(Math.atan2(y, x) / (Math.PI / 4)), dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]], [dx, dy] = dirs[(oct + 8) % 8];
-    const start = typeof driving !== 'undefined' && !driving;
-    if (typeof driving !== 'undefined') { driving = { dx, dy }; if (start && typeof stepNow === 'function' && performance.now() - lastStep >= curPace()) { holdSteps = 0; stepNow(true); } }
-  } else if (typeof driving !== 'undefined' && driving && PAD.dir) driving = null;
-  PAD.dir = mag > 0.45;
-  if (modalOpen) {
-    // in a window: B closes it, Start too
-    if (down(1) || down(9)) closeModal();
-  } else {
-    if (down(0)) chargeStart(); if (up(0)) chargeRelease();
+  const mag = Math.min(1, Math.hypot(x, y));
+  const menu = padScope();
+  if (menu) {
+    // windows and the title screen: step between buttons, with a repeat when held
+    if (typeof driving !== 'undefined' && driving) driving = null;
+    const now = performance.now();
+    if (mag > 0.5) {
+      const ax = Math.abs(x) > Math.abs(y) ? Math.sign(x) : 0, ay = ax ? 0 : Math.sign(y);
+      if (!PAD.dir || now > PAD.navT) { padMove(ax, ay); PAD.navT = now + (PAD.dir ? 120 : 340); }
+    }
+    PAD.dir = mag > 0.5;
+    if (down(0)) padPress();
+    if (down(1)) { if (menu.id === 'modal') closeModal(); }
+    if (down(9) && menu.id === 'modal') closeModal();
+    if (down(4)) padTab(-1); if (down(5)) padTab(1);
+    // the right stick scrolls a long window
+    const ry = g.axes[3] || 0; if (Math.abs(ry) > 0.3) { const body = document.getElementById('modal-body'); if (body) body.scrollTop += ry * 14; }
+  } else if (S) {
+    if (PAD.focus) padFocus(null);
+    if (!modalOpen && mag > 0.45) {
+      const oct = Math.round(Math.atan2(y, x) / (Math.PI / 4)), dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]], [dx, dy] = dirs[(oct + 8) % 8];
+      if (typeof shiftRun !== 'undefined') shiftRun = mag >= 0.97 && !b(12) && !b(13) && !b(14) && !b(15) ? true : (PAD.dir ? shiftRun && mag >= 0.9 : false);
+      if (typeof AC !== 'undefined') AC.dir = [dx, dy];
+      const start = typeof driving !== 'undefined' && !driving;
+      if (typeof driving !== 'undefined') { driving = { dx, dy }; if (start && typeof stepNow === 'function' && performance.now() - lastStep >= curPace() * 0.3) { holdSteps = 0; stepNow(true); } }
+    } else if (typeof driving !== 'undefined' && driving && PAD.dir) { driving = null; if (typeof shiftRun !== 'undefined') shiftRun = false; }
+    PAD.dir = mag > 0.45;
+    // A: swing in a live fight, otherwise whatever the Act button would do (talk, open, gather, attack, rest)
+    if (down(0)) { if (typeof AC !== 'undefined' && AC.on) chargeStart(); else if (typeof phoneAct === 'function') phoneAct(); else getAction(); }
+    if (up(0) && typeof AC !== 'undefined' && AC.charge) chargeRelease();
     if (down(1)) dodge();
     const blk = b(4) || b(6); if (blk && !AC.blocking && AC.sta > 5) AC.blocking = true; if (!blk && (was(4) || was(6))) AC.blocking = false;
     if (down(2)) getAction();
     if (down(7)) fire();
     if (down(5)) { const p = P(), sp = (p.favSpells || p.spells)[0]; if (sp) cast(sp); }
     if (down(3)) openHero('inv');
-    if (down(9)) openModal('Options', htmlOptions());
+    if (down(11)) restAction();
+    if (down(10) && typeof runToggle !== 'undefined') { runToggle = !runToggle; msg(runToggle ? 'Running.' : 'Walking.'); }
+    if (down(8)) { if (typeof openJournal === 'function') openJournal(); }
+    if (down(9)) { if (typeof openGame === 'function') openGame('options'); else openModal('Options', htmlOptions()); }
   }
   PAD.prev = g.buttons.map(x => x.pressed || x.value > 0.5);
 }
@@ -24129,18 +24207,29 @@ function buildPhoneControls() {
   const loc = document.getElementById('hud-loc'); if (loc) loc.addEventListener('click', () => document.body.classList.toggle('quest-open'));
 }
 // "Act": whatever you face — a person to talk to, a door, a counter, a plant to gather — or something at your feet
-function phoneAct() {
-  if (!canWalk()) return;
+// what the Act button would use: anything next to you, the way you face first
+function phoneUseSpot() {
   const m = curMap(), p = P(), [dx, dy] = (typeof AC !== 'undefined' && AC.dir) || [0, 1];
-  // anything next to you counts, the way you face first
   const order = [[dx, dy], [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-  if (typeof bumpMode === 'function' && bumpMode() && bumpAttack()) return;
   for (const [ox, oy] of order) {
     const x = p.x + ox, y = p.y + oy;
     const npc = m.npcs.find(n => n.x === x && n.y === y), trig = m.trig[K(x, y)], node = m.id === 'home' && S.home && S.home.nodes && S.home.nodes[K(x, y)];
-    if (npc || node || (trig && !walkable(m, x, y)) || tileAt(m, x, y) === '~') { act(ox, oy); return; }
+    if (npc || node || (trig && !walkable(m, x, y)) || tileAt(m, x, y) === '~') return [ox, oy];
   }
-  if (m.ground.some(g => Math.max(Math.abs(g.x - p.x), Math.abs(g.y - p.y)) <= 1)) return getAction();
+  if (m.ground.some(g => Math.max(Math.abs(g.x - p.x), Math.abs(g.y - p.y)) <= 1)) return 'ground';
+  return null;
+}
+// nothing to use, nothing in sight, and you're hurt or tired: the button offers a rest
+function phoneShouldRest() {
+  try { const p = P(), m = curMap(); return (p.hp < maxHp() || p.mp < maxMp() || p.st.poison) && !m.mons.some(o => monVisible(o)) && !phoneUseSpot(); } catch (e) { return false; }
+}
+function phoneAct() {
+  if (!canWalk()) return;
+  if (typeof bumpMode === 'function' && bumpMode() && bumpAttack()) return;
+  const use = phoneUseSpot();
+  if (Array.isArray(use)) { act(use[0], use[1]); return; }
+  if (use === 'ground') return getAction();
+  if (phoneShouldRest()) return restAction();
   msg('Nothing here to use. Walk up to someone or something and press Act.', 'talk');
 }
 // the big button says what it will do
@@ -24148,7 +24237,7 @@ setInterval(() => {
   const a = document.querySelector('#pp-a span'); if (!a || !S) return;
   const bump = typeof bumpMode === 'function' && bumpMode(), p = P();
   const fight = typeof AC !== 'undefined' && (AC.on || bump && curMap().mons.some(o => Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y)) <= 1 && monVisible(o) && !MONSTERS[o.id].prey));
-  const label = fight ? (bump ? 'Attack' : 'Swing') : 'Act';
+  const label = fight ? (bump ? 'Attack' : 'Swing') : phoneShouldRest() ? 'Rest' : 'Act';
   if (a.textContent === label) return; // nothing changed: leave the page alone
   a.textContent = label;
   document.getElementById('pp-a').classList.toggle('fight', fight);
@@ -28976,6 +29065,8 @@ function buzz(kind = 'light') {
   if (!HAPT.on) return;
   const now = performance.now(); if (now - HAPT.last < 70) return; HAPT.last = now;
   const pat = { light: 12, medium: 25, strong: [30, 40, 30], level: [20, 60, 20, 60, 40], hurt: [40, 30, 20] }[kind] || 15;
+  // a controller in hand rumbles instead, where the browser allows it
+  try { const g = typeof PAD !== 'undefined' && PAD.using && navigator.getGamepads && [...navigator.getGamepads()].find(Boolean); if (g && g.vibrationActuator && g.vibrationActuator.playEffect) { const ms = Array.isArray(pat) ? pat.reduce((a, b) => a + b, 0) : pat; g.vibrationActuator.playEffect('dual-rumble', { duration: Math.min(260, ms * 2), strongMagnitude: kind === 'strong' || kind === 'hurt' ? 0.8 : 0.35, weakMagnitude: 0.5 }).catch(() => { }); return; } } catch (e) { }
   try {
     if (navigator.vibrate) { navigator.vibrate(pat); return; }
     const sw = haptSwitch(); sw.click();
