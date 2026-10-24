@@ -28383,6 +28383,202 @@ try {
 } catch (e) { }
 
 </script>
+<script>/* festivals.js */
+// Festivals: one day in each season, the 4th, Brambleford keeps a feast. The square is dressed for it, people come
+// out, there are things to do, and paper lanterns are strung across the square after dark.
+//   Spring, the Blessing of the Fields: a maypole and blossom on the wind; lead the blessing at the temple altar.
+//   Summer, the Midsummer Fair: striped tents and archery butts; contests of eye, arm and stomach; fireworks at night.
+//   Autumn, the Harvest Fair: a bonfire, hay bales; enter your best produce or a cooked meal in the judging.
+//   Winter, the Midwinter Feast: a yule fire and feast tables; a free meal, and gifts count twice.
+// The herald's board in the square lists what's on. State: S.fest = { day, key, done: {activity: 1} }.
+
+const FESTIVALS = {
+  spring: { name: 'the Blessing of the Fields', short: 'Blessing of the Fields', col: ['#f2a8c8', '#fff0f6', '#a6e39a'] },
+  summer: { name: 'the Midsummer Fair', short: 'Midsummer Fair', col: ['#f2c94c', '#e05a3a', '#3b8fd6'] },
+  autumn: { name: 'the Harvest Fair', short: 'Harvest Fair', col: ['#e8862e', '#c9343c', '#f2c94c'] },
+  winter: { name: 'the Midwinter Feast', short: 'Midwinter Feast', col: ['#c9343c', '#f4f0e6', '#3f7a2a'] },
+};
+const dayInSeason = () => { const n = ((S ? S.day : 1) - 1 + (S && S.seasonOffset || 0)); return ((n % SEASON_DAYS) + SEASON_DAYS) % SEASON_DAYS + 1; };
+const festToday = () => S && dayInSeason() === 4 ? season() : null;
+
+// ---------------- the art ----------------
+Object.assign(NATIVE_PROPS, {
+  maypole: () => nativeProp(40, 96, ({ F, P, E }) => {
+    F(19, 10, 3, 84, '#8a6a40'); F(19, 10, 1, 84, '#a88a5a'); E(20, 9, 6, 3, '#f2a8c8'); for (let i = 0; i < 6; i++) P(15 + i * 2, 8, ['#fff0f6', '#a6e39a', '#f2c94c'][i % 3]);
+    const cols = ['#e05a7a', '#f2c94c', '#3b8fd6', '#a6e39a', '#9a7ce0', '#ffffff'];
+    cols.forEach((c, i) => { const a = (i / cols.length) * Math.PI * 2; for (let t = 0; t < 30; t++) { const x = 20 + Math.cos(a + t * 0.12) * (2 + t * 0.55), y = 12 + t * 2.6; if (y < 92) P(Math.round(x), Math.round(y), c); } });
+    E(20, 93, 10, 2.5, 'rgba(0,0,0,0.3)');
+  }),
+  fairtent: () => nativeProp(64, 60, ({ F, P }) => {
+    for (let y = 0; y < 22; y++) { const half = 6 + y * 1.2; for (let x = Math.round(32 - half); x < Math.round(32 + half); x++) P(x, 8 + y, Math.floor((x - 4) / 7) % 2 ? '#e05a3a' : '#f4f0e6'); }
+    F(31, 2, 2, 8, '#6a4a2a'); F(33, 2, 7, 4, '#3b8fd6');
+    F(8, 30, 48, 26, '#f4f0e6'); for (let x = 8; x < 56; x += 7) F(x, 30, 3, 26, '#e05a3a');
+    F(24, 36, 16, 20, '#3a2a20'); F(24, 36, 16, 2, '#2a1a10'); F(8, 30, 48, 2, '#c9343c');
+    for (let x = 8; x < 56; x += 4) { P(x, 32, '#c9343c'); P(x + 2, 33, '#c9343c'); }
+    F(6, 56, 52, 3, 'rgba(0,0,0,0.25)');
+  }),
+  archerytarget: () => nativeProp(32, 44, ({ F, E }) => {
+    F(6, 30, 3, 14, '#6a4a2a'); F(23, 30, 3, 14, '#6a4a2a');
+    E(16, 18, 14, 14, '#e8d8b0'); E(16, 18, 11, 11, '#3b6fc4'); E(16, 18, 8, 8, '#c9343c'); E(16, 18, 5, 5, '#f2c94c'); E(16, 18, 2, 2, '#c9343c');
+    F(18, 12, 9, 1, '#5a3a20'); F(26, 11, 2, 3, '#f4f0e6');
+  }),
+  bonfire: () => nativeProp(48, 48, ({ F, E, P }) => {
+    E(24, 42, 20, 5, '#3a2a20');
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI; F(10 + Math.round(Math.cos(a) * 12) + 12 - 12, 30 + Math.round(Math.sin(a) * 3), 26, 4, i % 2 ? '#5a3a20' : '#6a4a2a'); }
+    E(24, 30, 11, 12, '#e8862e'); E(24, 28, 8, 12, '#f2c94c'); E(24, 27, 4, 8, '#fff0a0'); E(18, 24, 4, 7, '#e8862e'); E(31, 25, 4, 6, '#e8862e');
+    for (let i = 0; i < 10; i++) P(14 + (i * 7) % 22, 8 + (i * 5) % 14, i % 2 ? '#ffb040' : '#fff0a0');
+  }),
+  haybale: () => nativeProp(34, 26, ({ F, P }) => {
+    F(2, 6, 30, 18, '#d8b450'); F(2, 6, 30, 3, '#ecd27a'); F(2, 21, 30, 3, '#a8862a'); F(9, 6, 2, 18, '#8a6a20'); F(23, 6, 2, 18, '#8a6a20');
+    for (let i = 0; i < 24; i++) P(3 + (i * 7) % 28, 9 + (i * 5) % 11, i % 2 ? '#c0a040' : '#f0dc8a');
+  }),
+  feasttable: () => nativeProp(80, 34, ({ F, E, P }) => {
+    F(2, 12, 76, 6, '#8a5a30'); F(2, 12, 76, 2, '#a87a48'); F(6, 18, 4, 14, '#5a3a20'); F(70, 18, 4, 14, '#5a3a20');
+    F(2, 10, 76, 3, '#f4f0e6'); F(2, 12, 76, 1, '#d8d0c0');
+    // food along it: a roast, bread, apples, a jug, candles
+    E(16, 8, 7, 4, '#a0582a'); E(16, 7, 5, 2.5, '#c9784a'); E(32, 8, 5, 3, '#d8a860'); for (const x of [44, 47, 50]) E(x, 8, 2, 2, '#c9343c');
+    F(60, 2, 5, 8, '#6a7a8a'); F(60, 2, 5, 2, '#8a9aaa'); for (const x of [26, 56]) { F(x, 1, 1, 8, '#f4f0e6'); P(x, 0, '#ffd27a'); }
+  }),
+  evergreen: () => nativeProp(40, 64, ({ F, E, P }) => {
+    F(18, 54, 4, 8, '#5a3a20');
+    for (let i = 0; i < 4; i++) E(20, 18 + i * 11, 8 + i * 4, 7, i % 2 ? '#2f5a2a' : '#3f6a2a');
+    for (let i = 0; i < 14; i++) P(10 + (i * 7) % 22, 14 + (i * 11) % 40, ['#c9343c', '#f2c94c', '#3b8fd6', '#f4f0e6'][i % 4]);
+    E(20, 9, 3, 3, '#f2c94c');
+  }),
+  festboard: () => nativeProp(28, 42, ({ F, P }) => {
+    F(5, 14, 3, 28, '#6a4a2a'); F(20, 14, 3, 28, '#6a4a2a'); F(2, 4, 24, 18, '#8a5a30'); F(3, 5, 22, 16, '#e8d8b0');
+    F(5, 7, 18, 2, '#c9343c'); for (let y = 11; y < 20; y += 3) F(5, y, 14 + (y % 2) * 3, 1, '#5a4a3a');
+  }),
+});
+Object.assign(DECOR_BLOCK, { maypole: 1, fairtent: 1, archerytarget: 1, bonfire: 1, haybale: 1, feasttable: 1, evergreen: 1, festboard: 1 });
+const FEST_SET = {
+  spring: [['maypole', 0, -4], ['festboard', -5, 2], ['wildflowers', 3, 3], ['wildflowers', -3, 3], ['wildflowers', 4, -2]],
+  summer: [['fairtent', -6, -3], ['fairtent', 6, -3], ['archerytarget', 7, 3], ['archerytarget', 8, 3], ['festboard', -5, 2], ['haybale', 5, 4]],
+  autumn: [['bonfire', 0, -4], ['haybale', -4, -3], ['haybale', 4, -3], ['pumpkins', -3, 3], ['pumpkins', 3, 3], ['festboard', -5, 2]],
+  winter: [['bonfire', 0, -4], ['feasttable', -4, 3], ['feasttable', 4, 3], ['evergreen', -6, -2], ['evergreen', 6, -2], ['festboard', -5, 2]],
+};
+function festSetup() {
+  const t = S.maps && S.maps.town; if (!t) return;
+  const key = festToday(), F = S.fest || (S.fest = {});
+  // tear down yesterday's
+  if (t.festKey && t.festKey !== key + ':' + S.day) { for (const k of t.festDecor || []) { if (t.decor[k] && t.decor[k] !== 'well') delete t.decor[k]; if (t.trig[k] && (t.trig[k].fest || t.trig[k].festfeast)) delete t.trig[k]; } t.festDecor = []; t.festKey = null; t.lights = (t.lights || []).filter(l => l[3] !== 'festfire'); }
+  if (!key || t.festKey) return;
+  if (F.day !== S.day) { F.day = S.day; F.key = key; F.done = {}; }
+  const c = t.fountain || [36, 24]; t.festDecor = []; t.festKey = key + ':' + S.day;
+  for (const [d, dx, dy] of FEST_SET[key]) {
+    let placed = false;
+    for (let r = 0; r < 4 && !placed; r++) for (const [ax, ay] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]]) { const x = c[0] + dx + ax * r, y = c[1] + dy + ay * r, k = K(x, y); if (walkable(t, x, y) && !t.decor[k] && !t.trig[k] && !t.npcs.some(n => n.x === x && n.y === y) && Math.max(Math.abs(x - P().x), Math.abs(y - P().y)) > 0) { t.decor[k] = d; t.festDecor.push(k); if (d === 'festboard') t.trig[k] = { fest: 1 }; if (d === 'feasttable') t.trig[k] = { festfeast: 1 }; if (d === 'bonfire') t.lights.push([x, y, 6, 'festfire']); placed = true; break; } }
+  }
+  msg(`Today is ${FESTIVALS[key].name}! The square is full of people.`, 'level'); if (typeof sfx === 'function') { try { sfx('bell'); } catch (e) { } }
+}
+let festLastDay = null;
+setInterval(() => {
+  try {
+    if (!S || dead) return;
+    if (festLastDay !== S.day) { festLastDay = S.day; if (dayInSeason() === 3) msg(`Tomorrow is ${FESTIVALS[season()].name}. Everyone is getting ready.`, 'news'); }
+    festSetup();
+  } catch (e) { }
+}, 2000);
+
+// ---------------- what's on ----------------
+const FEST_ACTS = {
+  spring: [['bless', 'Lead the blessing at the temple altar', 'The whole town walks up the hill behind you. Pray at the altar.']],
+  summer: [['archery', 'Archery contest', 'Three arrows at the butts: your Dexterity and Archery.'], ['strong', 'Strongman’s stone', 'Lift the stone higher than the smith’s boy: your Strength.'], ['pie', 'Pie-eating', 'Out-eat the miller: your Constitution.']],
+  autumn: [['judge', 'Enter the produce judging', 'Your best: the most valuable food or meal you carry goes on the table.']],
+  winter: [['feast', 'Sit down at the feast', 'Bread, roast, mulled ale: eat at the feast tables.'], ['gifts', 'Gift-giving', 'Every gift you give today counts twice.']],
+};
+function openFestival() {
+  const key = festToday(); if (!key) return;
+  const F = S.fest, f = FESTIVALS[key];
+  const draw = () => {
+    $('#modal-body').innerHTML = `<p class="lead">${{ spring: 'Blossom on the wind, a maypole in the square, and the whole town in its best.', summer: 'Striped tents, the smell of hot pies, and every child in the valley shrieking.', autumn: 'A bonfire, hay bales for seats, and tables groaning with the harvest.', winter: 'A yule fire, long tables, and lanterns in every window.' }[key]}</p>
+      <div class="list">${FEST_ACTS[key].map(([id, name, desc]) => `<div class="row"><div class="nm"><b>${name}</b><small>${desc}</small></div><div class="acts">${F.done[id] ? '<span class="pill">Done</span>' : id === 'bless' || id === 'feast' || id === 'gifts' ? '' : `<button class="btn tiny default" data-fest="${id}">Take part</button>`}</div></div>`).join('')}</div>`;
+  };
+  openModal(cap(f.name), '', { refresh: draw, wide: true }); draw();
+}
+const contest = (score, field) => { const rank = score >= field[0] ? 1 : score >= field[1] ? 2 : score >= field[2] ? 3 : 0; return rank; };
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-fest]'); if (!b || !S) return;
+  const id = b.dataset.fest, F = S.fest, p = P(); if (F.done[id]) return; F.done[id] = 1;
+  const roll = () => Math.floor(Math.random() * 10);
+  let score, label;
+  if (id === 'archery') { let sk = 0; try { sk = skillsOf().archery; } catch (er) { } score = (stat('dex') - 10) * 2 + sk / 5 + roll(); label = 'archery'; }
+  if (id === 'strong') { score = (stat('str') - 10) * 3 + roll(); label = 'strongman'; }
+  if (id === 'pie') { score = (stat('con') - 10) * 3 + roll(); label = 'pie-eating'; }
+  if (id === 'judge') {
+    const foods = [...p.inv.filter(i => T(i).cat === 'food').map(i => [T(i).val, T(i).name, () => removeOne(i)]), ...Object.keys(p.mats).filter(m => p.mats[m] > 0 && MATS[m] && MATS[m].cat === 'food').map(m => [MATS[m].val, MATS[m].name, () => { p.mats[m]--; }])].sort((a, c) => c[0] - a[0]);
+    if (!foods.length) { F.done[id] = 0; msg('You have nothing to enter. Fish, game, produce or a cooked meal would do.', 'warn'); refresh(); return; }
+    foods[0][2](); score = foods[0][0] / 2 + roll(); label = `the judging, with your ${foods[0][1]}`;
+  }
+  const rank = contest(score, [16, 11, 7]);
+  const prize = [0, 60, 30, 15][rank];
+  if (rank) { p.gold += prize; if (S.parish) S.parish.standing = (S.parish.standing || 0) + (rank === 1 ? 1 : 0); }
+  msg(rank ? `You come ${['', 'first', 'second', 'third'][rank]} in ${label}! (+${prize} gold${rank === 1 ? ', and a ribbon' : ''})` : `You don’t place in ${label}, but the crowd cheers you anyway.`, rank ? 'gold' : 'talk');
+  if (rank === 1 && typeof fxBurst === 'function') fxBurst(p.x, p.y, { n: 24, colors: FESTIVALS[festToday()].col, speed: 2.4, life: 1100, gravity: 1.2, up: 2.4 });
+  if (typeof cxBump === 'function' && rank === 1) cxBump('festwins');
+  refresh();
+});
+onTrigger(tr => {
+  if (tr.fest) { openFestival(); return true; }
+  if (tr.festfeast) {
+    const F = S.fest; if (!festToday() || F.done.feast) { msg('The feast tables. Crumbs, and a dog under them hoping for more.', 'talk'); return true; }
+    F.done.feast = 1; const p = P(); p.hp = maxHp(); p.mp = maxMp(); p.buffs = p.buffs || {}; p.buffs.rested = Math.max(p.buffs.rested || 0, 400); p.buffs.regenb = Math.max(p.buffs.regenb || 0, 300);
+    msg('You squeeze onto the bench between the baker and the blacksmith. Roast, bread, mulled ale, and someone starts a song. You leave Well Fed and warm through.', 'good'); return true;
+  }
+  if (tr.dlg === 'templealtar' && festToday() === 'spring' && S.fest && !S.fest.done.bless) {
+    S.fest.done.bless = 1; if (S.parish) S.parish.standing = (S.parish.standing || 0) + 2; try { useSkill('faith', 15); } catch (e) { }
+    try { const P_ = parish(); for (const w in P_.trust) P_.trust[w] = Math.min(5, P_.trust[w] + (Math.random() < 0.4 ? 1 : 0)); } catch (e) { }
+    openModal('The Blessing of the Fields', '<p class="lead">The temple is full to the doors and out into the yard. You lift the old words over the town, the fields, the flocks and the hives, the way Halvard did every spring, and three hundred voices answer you.</p><p class="dim">Parish standing +2. Some of the townsfolk think a little better of you.</p><div class="btnrow"><button class="btn" data-a="close">Amen</button></div>');
+    return true;
+  }
+  return false;
+});
+// Midwinter: gifts count twice
+if (typeof dlgGive === 'function') { const _dg = dlgGive; dlgGive = function (who) { const t0 = typeof trustOf === 'function' ? trustOf(who) : 0; const r = _dg.apply(this, arguments); try { if (festToday() === 'winter' && trustOf(who) > t0) { parish().trust[who] = Math.min(5, trustOf(who) + 1); } } catch (e) { } return r; }; }
+// the music of a feast day
+try { Object.assign(SCALES, { festival: { root: 293.66, steps: [0, 2, 4, 5, 7, 9, 11, 12, 14], wave: 'triangle', tempo: 0.34, drone: 0 } }); const _mm = musicMood; musicMood = function () { const m = _mm.apply(this, arguments); return m === 'town' && festToday() && S.mapId === 'town' ? 'festival' : m; }; } catch (e) { }
+// people come into the square
+setInterval(() => { try { if (!S || !festToday() || S.mapId !== 'town') return; const t = S.maps.town, c = t.fountain || [36, 24]; for (const n of t.npcs) if (!n.fixed && !n.comp && Math.random() < 0.15) n.goal = [c[0] + Math.floor(Math.random() * 13) - 6, c[1] + Math.floor(Math.random() * 9) - 4]; } catch (e) { } }, 5000);
+
+// ---------------- the look of a feast day ----------------
+onDraw(view => {
+  const key = festToday(); if (!key || S.mapId !== 'town') return;
+  const { ox, oy, r } = view, now = performance.now(), m = curMap(), c = m.fountain || [36, 24], night = typeof dayLight === 'function' ? dayLight().night || 0 : 0, col = FESTIVALS[key].col;
+  // paper lanterns strung across the square, glowing after dark
+  const runs = [[[c[0] - 8, c[1] - 6], [c[0] + 8, c[1] - 6]], [[c[0] - 8, c[1] + 5], [c[0] + 8, c[1] + 5]], [[c[0] - 8, c[1] - 6], [c[0] - 8, c[1] + 5]], [[c[0] + 8, c[1] - 6], [c[0] + 8, c[1] + 5]]];
+  for (const [a, b] of runs) {
+    const x0 = ox + (a[0] + 0.5) * TS, y0 = oy + (a[1] - 1) * TS, x1 = ox + (b[0] + 0.5) * TS, y1 = oy + (b[1] - 1) * TS, len = Math.hypot(x1 - x0, y1 - y0), sag = TS * 0.6, n = Math.max(4, Math.round(len / (TS * 1.2)));
+    const at = k => [x0 + (x1 - x0) * k, y0 + (y1 - y0) * k + sag * 4 * k * (1 - k)];
+    ctx.strokeStyle = 'rgba(40,30,30,0.7)'; ctx.lineWidth = Math.max(1, TS / 40); ctx.beginPath(); for (let i = 0; i <= 16; i++) { const [x, y] = at(i / 16); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+    for (let i = 1; i < n; i++) {
+      const [x, y] = at(i / n), s = TS * 0.16, hue = col[i % col.length];
+      if (night > 0.2) { const g = ctx.createRadialGradient(x, y + s, 1, x, y + s, s * 4); g.addColorStop(0, `rgba(255,200,120,${(0.45 * night).toFixed(2)})`); g.addColorStop(1, 'rgba(255,200,120,0)'); ctx.fillStyle = g; ctx.fillRect(x - s * 4, y - s * 3, s * 8, s * 8); }
+      ctx.fillStyle = hue; ctx.fillRect(x - s * 0.7, y, s * 1.4, s * 2); ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x - s * 0.7, y, s * 0.4, s * 2);
+      ctx.fillStyle = '#3a2a20'; ctx.fillRect(x - s * 0.5, y - s * 0.2, s, s * 0.25); ctx.fillRect(x - s * 0.5, y + s * 2, s, s * 0.25);
+    }
+  }
+  if (typeof fxAdd !== 'function' || (typeof fxCalm === 'function' && fxCalm())) return;
+  // blossom on the wind in spring; sparks from the fire in autumn and winter; snow on the feast
+  if (key === 'spring' && Math.random() < 0.5) { const p = P(); fxAdd({ k: 'p', x: p.x - 10 + Math.random() * 20, y: p.y - 7, vx: 0.6 + Math.random() * 0.5, vy: 0.6 + Math.random() * 0.4, g: 0, life: 4500, size: 1.6, c: Math.random() < 0.6 ? '#f8c8dc' : '#ffffff', shape: 'sq' }); }
+  if ((key === 'autumn' || key === 'winter') && Math.random() < 0.6) for (const k of m.festDecor || []) if (m.decor[k] === 'bonfire') { const [x, y] = k.split(',').map(Number); fxAdd({ k: 'p', x: x + 0.5 + (Math.random() - 0.5) * 0.6, y: y + 0.4, vx: (Math.random() - 0.5) * 0.5, vy: -1.5 - Math.random(), g: 0, life: 900, size: 1.4, c: Math.random() < 0.5 ? '#ffb040' : '#fff0a0', shape: 'star' }); }
+  // fireworks over the Midsummer Fair after dark
+  if (key === 'summer' && night > 0.4 && Math.random() < 0.04) { const fx = c[0] - 6 + Math.random() * 12, fy = c[1] - 9 - Math.random() * 3, cl = [col[Math.floor(Math.random() * 3)], '#ffffff']; for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2, s = 2.6 + Math.random() * 0.8; fxAdd({ k: 'p', x: fx, y: fy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 1.6, life: 1300, size: 2, c: cl[i % 2], shape: 'star' }); } if (typeof sfx === 'function') { try { tone(90, 0.4, { type: 'sine', vol: 0.08, slide: 0.5 }); } catch (e) { } } }
+});
+// the journal mentions it
+{
+  const _jq = jQuests;
+  jQuests = function () {
+    const out = _jq.apply(this, arguments);
+    try { const key = festToday(); if (key) { const t = S.maps.town, k = (t.festDecor || []).find(k => t.decor[k] === 'festboard'); const [x, y] = k ? k.split(',').map(Number) : (t.fountain || [36, 24]); out.unshift({ id: 'fest', group: 'Today', kicker: 'Festival', title: cap(FESTIVALS[key].name), desc: 'The whole town is in the square. The herald’s board lists what’s on.', target: { map: 'town', x, y } }); } } catch (e) { }
+    return out;
+  };
+}
+try {
+  ACHIEVEMENTS.push(['festival', 'Feast Day', 'Take part in a festival.', () => !!(S.fest && Object.keys(S.fest.done || {}).length), 'life']);
+  ACHIEVEMENTS.push(['ribbon', 'Blue Ribbon', 'Win a festival contest.', () => (cxState().n.festwins || 0) >= 1, 'life']);
+} catch (e) { }
+
+</script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
