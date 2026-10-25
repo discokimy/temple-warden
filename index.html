@@ -449,6 +449,9 @@ input[type=text], input:not([type]) { font: 600 16px var(--body); color: var(--i
   #target .tg-name { flex-direction: column; align-items: flex-start; gap: 0; } #target .tg-name b { max-width: 100%; }
 }
 @media (max-width: 1100px) { .inv2 { grid-template-columns: 280px minmax(0, 1fr); } .inv2 .detail { grid-column: 1 / -1; } }
+/* tablets keep the item card beside the grid (landscape) or under the paper doll (portrait), never below the fold */
+@media (min-width: 900px) and (max-width: 1100px) { body.tablet .inv2, body:not(.phone) .inv2 { grid-template-columns: 236px minmax(0, 1fr) 250px; gap: 14px; } body:not(.phone) .inv2 .detail { grid-column: auto; } }
+@media (min-width: 761px) and (max-width: 899px) { body:not(.phone) .inv2 { grid-template-columns: 236px minmax(0, 1fr); align-items: start; } body:not(.phone) .inv2 .detail { grid-column: 1; grid-row: 2; } body:not(.phone) .inv2 > :nth-child(2) { grid-row: 1 / span 2; } }
 @media (max-width: 760px) {
   .hud-player { left: 10px; top: 10px; width: calc(100% - 160px); max-width: 300px; }
   .pcard { padding: 8px 10px; gap: 8px; } .portrait { width: 46px; height: 46px; } .portrait img { width: 58px !important; height: 58px !important; }
@@ -906,16 +909,31 @@ body.pad-on #joy, body.pad-on #phonepad { display: none !important; }
 /* ---------- iPad and tablets ---------- */
 body.tablet .pad { display: none !important; }
 body.tablet:not(.haskb) kbd { display: none !important; }
-body.tablet .dock { left: 20px; right: auto; top: 166px; bottom: auto; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; max-width: calc(100% - 330px); gap: 8px; }
+body.tablet .dock { left: 20px; right: auto; top: 164px; bottom: auto; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; max-width: calc(100% - 330px); gap: 8px; }
 body.tablet .dbtn .tl { display: none; }
+body.tablet .dbtn[data-lbl] { flex-direction: column; gap: 1px; height: 54px !important; padding: 3px 6px 2px !important; }
+body.tablet .dbtn[data-lbl]::after { content: attr(data-lbl); font: 600 10px/1 Figtree, sans-serif; color: var(--dim); letter-spacing: .02em; }
+body.tablet .dbtn[data-lbl] [data-icon], body.tablet .dbtn[data-lbl] svg { transform: scale(0.88); }
+body.tablet .gold { height: 54px !important; }
 body.tablet .dbtn { height: 48px; min-width: 48px; padding: 0 10px; }
 body.tablet .gold { height: 48px; }
-body.tablet #log { top: 228px; bottom: auto; width: min(440px, 46vw); max-height: 112px; justify-content: flex-start; -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+body.tablet #log { top: 232px; bottom: auto; width: min(440px, 46vw); max-height: 112px; justify-content: flex-start; -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
 body.tablet #log.open { max-height: 50vh; -webkit-mask-image: none; mask-image: none; }
-body.tablet #tipcard { top: 228px; }
+body.tablet #tipcard { top: 232px; }
 body.tablet:has(#tipcard.show) #log { opacity: 0; }
 body.tablet #zoombar { right: 24px; bottom: 228px; flex-direction: row; gap: 8px; }
 body.tablet #zoombar button { width: 44px; height: 44px; }
+/* what you're fighting: centred just above the hotbar, where the eye already is in a fight */
+body.tablet #target { position: fixed !important; left: 50%; right: auto; top: auto; bottom: 104px; transform: translateX(-50%) !important; width: min(300px, 40vw) !important; z-index: 7; }
+/* fingers, not a mouse pointer: every button is comfortably tappable */
+body.tablet #modal-body .btn { min-height: 40px; }
+body.tablet #modal-body .btn.tiny { min-height: 36px; padding-left: 12px; padding-right: 12px; }
+body.tablet #modal-body { font-size: 15px; }
+body.tablet #modal .stab { min-height: 40px; }
+body.tablet #actpad { display: none !important; }
+/* a change of scene dims the world, not your own panels */
+#scene-snap { z-index: 1; }
+:where(.hud-player, .hud-right, .dock, .hotbar, #log, #zoombar) { z-index: 2; }
 body.tablet .hotbar { z-index: 7; bottom: max(16px, env(safe-area-inset-bottom)); }
 body.tablet #joy { display: block; position: absolute; left: 0; bottom: 0; width: min(30%, 320px); height: 46%; border-radius: 0; background: none; border: 0; touch-action: none; z-index: 6; }
 body.tablet #joy-ring { left: 34px; bottom: 34px; width: 150px; height: 150px; }
@@ -938,6 +956,7 @@ body.tablet #pp-g { right: 10px; bottom: 130px; width: 54px; height: 54px; font-
 @media (max-width: 1560px) and (min-width: 761px) and (max-height: 900px) {
   body:not(.phone) .dock { left: 20px; right: auto; top: 166px; bottom: auto; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; max-width: calc(100% - 330px); }
   body:not(.phone) #zoombar { right: 20px; }
+  body:not(.phone):not(.tablet) #target { position: fixed; left: 50%; top: 20px; transform: translateX(-50%); width: min(320px, calc(100% - 720px)); min-width: 240px; }
 }
 body.tablet #modal.talkmode { justify-content: center; }
 body.tablet #modal.talkmode .win { width: min(760px, 94vw); }
@@ -20636,7 +20655,7 @@ async function titleScreen() {
   el.innerHTML = `<canvas id="title-cv" aria-hidden="true"></canvas>
     <div class="title-ui"><div class="title-logo"><span class="title-kicker">A tale of Brambleford</span><h1>The Temple Warden</h1></div>
     <div class="title-panel" id="title-panel"></div>
-    <div class="title-foot">Arrow keys or tap to move · Walk into things to interact</div></div>`;
+    <div class="title-foot">${(document.body.classList.contains('phone') || document.body.classList.contains('tablet')) && !document.body.classList.contains('haskb') ? 'Joystick to move · Act to talk, open and fight' : 'Arrow keys or tap to move · Walk into things to interact'}</div></div>`;
   titleView = 'main'; titleSlots = []; drawTitleMenu();
   if (!titleRAF) titleRAF = requestAnimationFrame(titleTick);
   await initStore();
@@ -29393,6 +29412,17 @@ function tabletFit() {
   q.style.maxHeight = Math.max(90, Math.floor(room)) + 'px'; q.style.overflowY = 'auto';
 }
 setInterval(tabletFit, 600); addEventListener('resize', () => setTimeout(tabletFit, 50));
+
+// the action row's icons get a one-word name underneath on a tablet (a cottage for Rest is not obvious)
+function tabletLabels() {
+  const NAMES = { get: 'Take', rest: 'Rest', torch: 'Torch', fire: 'Shoot', sneak: 'Sneak', hero: 'Pack', game: 'Menu' };
+  for (const b of document.querySelectorAll('.dock .dbtn')) {
+    if (b.dataset.lbl) continue;
+    const n = NAMES[b.dataset.a] || (b.getAttribute('aria-label') || b.title || '').replace(/\s*\(.*?\)/g, '').split(/[:,]/)[0].replace(/^Ride your pony$/, 'Ride').trim();
+    if (n) b.dataset.lbl = n.split(' ')[0];
+  }
+}
+tabletLabels(); setInterval(tabletLabels, 3000);
 
 </script>
 
