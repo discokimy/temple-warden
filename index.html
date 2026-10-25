@@ -14044,20 +14044,41 @@ const BUILDS = {
 };
 const FOOT_Y = 46;
 
-// walk poses (side view): where each foot and hand goes, and how much the body rises
-const SIDE_STEPS = [
-  { nf: [5, 0], ff: [-4, -1], nh: [-5, 0], fh: [5, -1], lift: 0 },
-  { nf: [0, 0], ff: [-2, -3], nh: [0, 0], fh: [0, 0], lift: 1 },
-  { nf: [-4, -1], ff: [5, 0], nh: [5, -1], fh: [-5, 0], lift: 0 },
-  { nf: [-2, -3], ff: [0, 0], nh: [0, 0], fh: [0, 0], lift: 1 },
-];
-// front/back view: one foot lifts while the other plants; hands swing a little
-const FRONT_STEPS = [
-  { l: 2, r: 0, lh: [1, -1], rh: [0, 1], lift: 0 },
-  { l: 0, r: 0, lh: [0, 0], rh: [0, 0], lift: 1 },
-  { l: 0, r: 2, lh: [0, 1], rh: [-1, -1], lift: 0 },
-  { l: 0, r: 0, lh: [0, 0], rh: [0, 0], lift: 1 },
-];
+// walk poses: an eight-step cycle worked out from one swing of the legs, so feet plant and lift, knees bend as a
+// foot comes through, the body rises as the legs pass, and each arm swings against its leg with the elbow
+// trailing. (Frames 0–7; two steps per cycle.)
+const WALK_N = 8;
+const SIDE_STEPS = [], FRONT_STEPS = [];
+for (let i = 0; i < WALK_N; i++) {
+  const ph = i / WALK_N * Math.PI * 2, c = Math.cos(ph), sn = Math.sin(ph), R = v => Math.round(v);
+  // side view: the near foot swings forward while it is lifted, the far foot does the opposite
+  const nLift = Math.max(0, -sn) * 3, fLift = Math.max(0, sn) * 3;
+  SIDE_STEPS.push({
+    nf: [R(5 * c), -R(nLift)], ff: [R(-5 * c), -R(fLift)],
+    nh: [R(-4.5 * c), -R(Math.max(0, -c) * 2)], fh: [R(4.5 * c), -R(Math.max(0, c) * 2)],
+    nk: nLift / 3, fk: fLift / 3, lift: R(1 - Math.abs(c)),
+  });
+  // front and back: one foot lifts and comes toward you while the opposite hand swings forward and up
+  FRONT_STEPS.push({
+    l: R(Math.max(0, -sn) * 3), r: R(Math.max(0, sn) * 3),
+    // the forward hand comes up and in toward the middle; the back hand drops a little and out
+    lh: [R(c * 1.6), R(c > 0 ? -3.2 * c : -1.2 * c)], rh: [R(c * 1.6), R(c < 0 ? 3.2 * c : 1.2 * c)],
+    lift: R(1 - Math.abs(c)),
+  });
+}
+// an arm with an elbow: the upper arm hangs from the shoulder, the forearm reaches the hand; the elbow sits a
+// little behind the straight line (toward 'back'), more so the further forward the hand has swung
+function armL(Lr, sx, sy, hx, hy, w, col, backX, bend) {
+  const mx = sx + (hx - sx) * 0.48, my = sy + (hy - sy) * 0.52, len = Math.hypot(hx - sx, hy - sy) || 1;
+  const nx = -(hy - sy) / len, ny = (hx - sx) / len, side = nx * backX >= 0 ? 1 : -1;
+  const ex = mx + nx * side * bend, ey = my + ny * side * bend * 0.6;
+  limbL(Lr, sx, sy, ex, ey, w, col); limbL(Lr, ex, ey, hx, hy, Math.max(2, w - 0.6), col);
+}
+// a leg with a knee that comes forward as the foot lifts
+function legL(Lr, hx, hy, fx, fy, w, col, fwdX, k) {
+  const mx = (hx + fx) / 2 + fwdX * k * 2.2, my = (hy + fy) / 2 - k * 1;
+  limbL(Lr, hx, hy, mx, my, w, col); limbL(Lr, mx, my, fx, fy, w - 0.4, col);
+}
 
 // ---------------- drawing a person ----------------
 // view: 'down' | 'up' | 'right' ('left' is 'right' mirrored); pose: 'idle0', 'idle1', or 0–3 for walking
@@ -14116,7 +14137,7 @@ function drawFigure(spec, view, pose) {
   }
   const hipY = up(B.hipBot - 1), shoulderY = up(B.torsoTop + 1), handY = up(B.torsoBot + 1);
   const legsVisible = !long && race !== 'serpent';
-  const wig = walking ? (pose % 2 ? 1 : -1) : 0;
+  const wig = walking ? ((pose >> 1) % 2 ? 1 : -1) : 0;
   if (race === 'ratkin') {
     // a long bare tail, behind the body
     const tl = L(), tc = spec.tailColor || 'd89a9a';
@@ -14139,11 +14160,11 @@ function drawFigure(spec, view, pose) {
     // far leg and arm, a shade darker
     const fl = L(1), farPants = shadeHex(pants, 0.82), farBoots = shadeHex(boots, 0.82);
     const fx = cx + ss.ff[0], fy = FOOT_Y + ss.ff[1];
-    if (legsVisible) limbL(fl, cx - 1, hipY, fx, fy - 3, B.legW - 1, coat ? shadeHex(spec.coatColor || shirt, 0.8) : farPants);
+    if (legsVisible) legL(fl, cx - 1, hipY, fx, fy - 3, B.legW - 1, coat ? shadeHex(spec.coatColor || shirt, 0.8) : farPants, 1, ss.fk || 0);
     if (race !== 'serpent') rectL(fl, fx - 2, fy - 3, race === 'skeleton' ? 4 : 6, race === 'skeleton' ? 2 : 4, farBoots);
     finish(fl);
     const fa = L(1), fhx = cx + ss.fh[0], fhy = handY + ss.fh[1];
-    limbL(fa, cx, shoulderY + 1, fhx, fhy - 2, B.armW - 1, shadeHex(sleeve, 0.8));
+    armL(fa, cx, shoulderY + 1, fhx, fhy - 2, B.armW - 1, shadeHex(sleeve, 0.8), -1, 0.8 + Math.max(0, ss.fh[0]) * 0.35);
     ellL(fa, fhx, fhy, 2, 2, skinD);
     finish(fa);
   }
@@ -14177,7 +14198,15 @@ function drawFigure(spec, view, pose) {
   if (long) {
     // a skirt or robe widening to the ankles
     const top = up(B.torsoBot - 1), bot = FOOT_Y - 2;
-    for (let y = top; y <= bot; y++) { const k = (y - top) / (bot - top), w = tw + Math.round(k * (side ? 5 : 7)); rectL(tb, cx - w / 2 + (side ? 1 : 0), y, w, 1, spec.skirt || torsoColor); }
+    // the hem swings with the stride, and the feet show beneath it as they step
+    const ph = walking ? pose / WALK_N * Math.PI * 2 : 0, swing = walking ? (side ? -Math.cos(ph) * 2 : Math.sin(ph) * 1.4) : 0;
+    for (let y = top; y <= bot; y++) { const k = (y - top) / (bot - top), w = tw + Math.round(k * (side ? 5 : 7)); rectL(tb, cx - w / 2 + (side ? 1 : 0) + Math.round(swing * k * k), y, w, 1, spec.skirt || torsoColor); }
+    if (walking && race !== 'serpent') {
+      const ft = L(1);
+      if (side) { rectL(ft, cx + ss.nf[0] - 1, FOOT_Y - 2 + ss.nf[1], 5, 2, boots); }
+      else { if (fs.l || pose % 4 === 0) rectL(ft, cx - 5, FOOT_Y - 1 - Math.min(1, fs.l), 4, 2, boots); if (fs.r || pose % 4 === 2) rectL(ft, cx + 1, FOOT_Y - 1 - Math.min(1, fs.r), 4, 2, boots); }
+      finish(ft); layers.splice(layers.indexOf(ft), 1); layers.splice(layers.indexOf(tb), 0, ft);
+    }
   }
   if (coat) {
     const top = up(B.torsoBot - 1), bot = up(B.hipBot + 7);
@@ -14211,13 +14240,13 @@ function drawFigure(spec, view, pose) {
   const ar = L(1);
   if (side) {
     const nhx = cx + ss.nh[0], nhy = handY + ss.nh[1];
-    limbL(ar, cx, shoulderY + 1, nhx, nhy - 2, B.armW, sleeve);
+    armL(ar, cx, shoulderY + 1, nhx, nhy - 2, B.armW, sleeve, -1, 0.8 + Math.max(0, ss.nh[0]) * 0.35);
     ellL(ar, nhx, nhy, 2, 2, spec.gloves || skin);
   } else {
     const sx = tw / 2 + (B.armW > 4 ? 0.5 : 0);
     const lhx = cx - sx - 1 + fs.lh[0], lhy = handY + fs.lh[1], rhx = cx + sx + 1 + fs.rh[0], rhy = handY + fs.rh[1];
-    limbL(ar, cx - sx + 1, shoulderY + 1, lhx, lhy - 2, B.armW, sleeve);
-    limbL(ar, cx + sx - 1, shoulderY + 1, rhx, rhy - 2, B.armW, sleeve);
+    armL(ar, cx - sx + 1, shoulderY + 1, lhx, lhy - 2, B.armW, sleeve, -1, 0.5 + Math.max(0, -fs.lh[1]) * 0.3);
+    armL(ar, cx + sx - 1, shoulderY + 1, rhx, rhy - 2, B.armW, sleeve, 1, 0.5 + Math.max(0, -fs.rh[1]) * 0.3);
     const hand = spec.gloves || (back ? skinD : skin); ellL(ar, lhx, lhy, 2, 2, hand); ellL(ar, rhx, rhy, 2, 2, hand);
     if (spec.gloves) { rectL(ar, lhx - 2, lhy - 3, 4, 1, shadeHex(spec.gloves, 1.2)); rectL(ar, rhx - 2, rhy - 3, 4, 1, shadeHex(spec.gloves, 1.2)); }
     if (spec.armor === 'plate') { rectL(ar, lhx - 2, lhy - 4, 4, 2, 'c9d1d8'); rectL(ar, rhx - 2, rhy - 4, 4, 2, 'c9d1d8'); }
@@ -14226,7 +14255,7 @@ function drawFigure(spec, view, pose) {
   // --- near leg (side view): drawn after the body so it steps in front ---
   if (side) {
     const nl = L(1), nfx = cx + ss.nf[0], nfy = FOOT_Y + ss.nf[1];
-    if (legsVisible) limbL(nl, cx + 1, hipY, nfx, nfy - 3, B.legW, coat ? spec.coatColor || shirt : pants);
+    if (legsVisible) legL(nl, cx + 1, hipY, nfx, nfy - 3, B.legW, coat ? spec.coatColor || shirt : pants, 1, ss.nk || 0);
     if (race !== 'serpent') { rectL(nl, nfx - 2, nfy - 3, race === 'skeleton' ? 4 : 6, race === 'skeleton' ? 2 : 4, boots); setPx(nl, nfx + 4, nfy, boots); }
     finish(nl);
     // the near arm swings in front of the leg
@@ -17127,7 +17156,7 @@ function visualPos(obj) {
   if (k >= 1) return { x: obj.x, y: obj.y, frame: -1, bob: 0 };
   anyMoving = true;
   const e = mv.linear ? k : easeMove(k);
-  return { x: mv.fx + (mv.tx - mv.fx) * e, y: mv.fy + (mv.ty - mv.fy) * e, frame: Math.floor((now - mv.walkT0) / (mv.dur / 2)) % 4, bob: Math.abs(Math.sin(Math.PI * (now - mv.walkT0) / (mv.stepMs || mv.dur))) };
+  return { x: mv.fx + (mv.tx - mv.fx) * e, y: mv.fy + (mv.ty - mv.fy) * e, frame: (Math.floor((now - mv.walkT0) / ((mv.stepMs || mv.dur) / 4)) + 2) % 8, bob: Math.abs(Math.sin(Math.PI * (now - mv.walkT0) / (mv.stepMs || mv.dur))) };
 }
 
 // ================= messages =================
@@ -19067,7 +19096,7 @@ function renderMap() {
   const actors = [];
   anyMoving = false;
   // creatures use their sprite with a lifted foot while moving; people are drawn whole by the figure system
-  const actor = (obj, c, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: v.frame >= 0 ? walkFrames(c)[v.frame % 2] : c, bob: v.bob || 0 }, extra); };
+  const actor = (obj, c, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: v.frame >= 0 ? walkFrames(c)[(v.frame >> 1) % 2] : c, bob: v.bob || 0 }, extra); };
   const person = (obj, spec, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: figure(spec, facingOf(obj), poseOf(obj, v)), bob: (v.bob || 0) * 0.7 }, extra); };
   for (const n of m.npcs) {
     const mark = n.prop ? null : npcMark(whoOf(n));

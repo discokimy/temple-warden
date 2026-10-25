@@ -1,5 +1,5 @@
 // Offline support for the home-screen app. Network first, so updates arrive; the cache covers no signal.
-const CACHE = 'tw-f9d233207c';
+const CACHE = 'tw-85631962af';
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-192-361f1ead.png", "icon-512-361f1ead.png", "apple-touch-icon-361f1ead.png"];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).catch(() => {})); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
