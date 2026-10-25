@@ -1032,6 +1032,14 @@ body.phone .sheet-tabs .stab { flex: none; min-height: 38px; }
 #hub .hub-l { font: 600 12px/1.15 Figtree, sans-serif; text-align: center; }
 #hub .hub-b { position: absolute; top: 5px; right: 6px; min-width: 18px; height: 18px; border-radius: 9px; background: #ffb43a; color: #1a1006; font: 700 11px/18px Figtree, sans-serif; font-style: normal; }
 @media (orientation: landscape) { #hub .hub-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } #hub .hub-t { min-height: 62px; } }
+/* Rest, by the thumbs, whenever nothing hostile is in sight */
+#pp-r { display: none; }
+#phonepad #pp-r.show { display: inline-flex; align-items: center; justify-content: center; gap: 5px; position: absolute; right: 54px; bottom: 106px; width: 72px; height: 36px; border-radius: 18px; font: 700 13px var(--body, Figtree), sans-serif; color: #e8dcc2; background: rgba(24,18,14,0.82); border: 1px solid rgba(255,220,150,0.45); animation: rIn .25s ease-out; }
+#phonepad #pp-r.hurt { color: #fff1cc; background: linear-gradient(180deg, rgba(110,80,30,0.95), rgba(70,50,20,0.95)); border-color: #e3b93c; box-shadow: 0 0 14px rgba(255, 200, 100, 0.35); }
+@keyframes rIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+body.tablet #phonepad #pp-r.show { right: 76px; bottom: 150px; width: 88px; height: 42px; font-size: 14px; }
+/* the controller's picked hotbar slot */
+.hslot.padsel { outline: 3px solid #9fd0f5; outline-offset: 1px; box-shadow: 0 0 12px rgba(160, 210, 255, 0.5); }
 </style>
 </head>
 <body>
@@ -14582,6 +14590,12 @@ function drawFigure(spec, view, pose) {
       const [hx, hy] = at(9.5, ang); rectL(hold, hx + (dir > 0 ? 0 : -4), hy - 3, 4, 5, 'b8c0c8'); rectL(hold, hx + (dir > 0 ? 3 : -4), hy - 3, 1, 5, 'e6ecf0');
     } else if (item === 'dagger') {
       const ang = 0.6; stick(-1.5, 0.5, ang, 1.2, '5a3a20'); stick(1.5, 6.5, ang, 1.3, STEEL);
+    } else if (item === 'pickaxe') {
+      // a miner's pick: a long haft and a curved iron head, pointed at both ends
+      const ang = 0.45; stick(-3, 12, ang, 1.6, WOOD, WOODL);
+      const [hx, hy] = at(11, ang);
+      for (let t = -5; t <= 5; t++) { const yy = hy - 1 + Math.round(t * t / 12); setPx(hold, hx + t, yy, '9aa3ab'); setPx(hold, hx + t, yy - 1, t < 0 ? 'c9d1d8' : 'b8c0c8'); }
+      setPx(hold, hx - 6, hy + 2, '8a949e'); setPx(hold, hx + 6, hy + 2, '8a949e');
     } else if (item === 'hammer') {
       // carried at the side, head down
       limbL(hold, x, y - 3, x + dir, y + 8, 1.6, WOOD); rectL(hold, x + dir - 3, y + 8, 7, 3, '6a7078'); setPx(hold, x + dir - 3, y + 8, '9aa5b0');
@@ -14628,7 +14642,7 @@ function drawFigure(spec, view, pose) {
     if (fist) { ellL(hold, x, y, 2.1, 2.1, skin); setPx(hold, x - dir, y + 1, skinD); setPx(hold, x, y + 1, skinD); setPx(hold, x + dir, y - 1, shadeHex(skin, 1.06)); }
   };
   if (!back) {
-    if (spec.held) drawHeld(spec.held, hx0, hy0, 1, true, PZ && PZ.ang || 0);
+    if (spec.held) drawHeld(spec.held, hx0, hy0, 1, true, PZ && PZ.ang || (walking ? (side ? -ss.nh[0] * 0.05 : fs.rh[1] * 0.06) : 0));
     if (spec.offhand && !side) drawHeld(spec.offhand, lhx0, lhy0, -1);
   }
   finish(hold);
@@ -14636,8 +14650,9 @@ function drawFigure(spec, view, pose) {
   if (back && (spec.held || spec.offhand)) {
     const bh = newLayer(); const saved = hold.d; // reuse the drawing code into a back layer
     const tmp = hold; tmp.d = bh.d;
-    if (spec.held) drawHeld(spec.held, cx - B.tw / 2 - 2, handY, -1, false);
-    if (spec.offhand) drawHeld(spec.offhand, cx + B.tw / 2 + 2, handY, 1, false);
+    // seen from behind, the weapon hand is on the left: it travels with that hand as the arms swing
+    if (spec.held) drawHeld(spec.held, lhx0, lhy0, -1, false, PZ && PZ.ang ? -PZ.ang : (walking ? fs.lh[1] * 0.06 : 0));
+    if (spec.offhand) drawHeld(spec.offhand, cx + B.tw / 2 + 2 + fs.rh[0], handY + fs.rh[1], 1, false);
     finish(tmp); layers.splice(layers.indexOf(tmp), 1); layers.unshift(tmp); void saved;
   }
   for (const l of layers) stack(out, l);
@@ -19104,7 +19119,7 @@ function renderMap() {
     else actors.push(actor(n, n.prop ? (NATIVE_PROPS[n.prop] ? nativePropCanvas(n.prop) : propCanvas(n.prop)) : npcCanvas(n.spr), { mark }));
   }
   for (const o of m.mons) if (monVisible(o)) actors.push(MON_FIG[o.id] ? person(o, MON_FIG[o.id], { mon: o }) : actor(o, monCanvas(o.id), { mon: o }));
-  actors.push(dead ? { y: p.y, x: p.x, c: figure(heroSpec(p.equip, p.look), 'down', 'hurt'), hero: 1, bob: 0, lying: 1 } : person(p, typeof fishing !== 'undefined' && fishing ? Object.assign({}, heroSpec(p.equip, p.look), { held: 'rod', offhand: undefined }) : heroSpec(p.equip, p.look), { hero: 1 }));
+  actors.push(dead ? { y: p.y, x: p.x, c: figure(heroSpec(p.equip, p.look), 'down', 'hurt'), hero: 1, bob: 0, lying: 1 } : person(p, typeof fishing !== 'undefined' && fishing ? Object.assign({}, heroSpec(p.equip, p.look), { held: 'rod', offhand: undefined }) : p.ready && typeof readyLook === 'function' ? readyLook(p) : heroSpec(p.equip, p.look), { hero: 1 }));
   // trees stand among the people: whoever is lower on the screen is in front. A crown you're standing behind thins out.
   const hv0 = visualPos(p);
   for (const t of trees) {
@@ -19492,6 +19507,7 @@ const HOT_ITEMS = ['pheal', 'pgheal', 'pmana', 'pantidote', 'pstr', 'plife', 'sr
 function renderHotbar() {
   const p = P(); const s = [];
   if (p.equip.weapon) s.push({ kind: 'weapon', it: p.equip.weapon });
+  for (const it of p.inv) if (T(it).tool === 'pick' && !s.some(x => x.kind === 'tool')) s.push({ kind: 'tool', it });
   if (typeof giftSlot === 'function') { const gs = giftSlot(); if (gs) s.push(gs); }
   for (const id of HOT_ITEMS) { const it = p.inv.find(i => i.id === id); if (it) s.push({ kind: 'item', it }); }
   for (const sp of (p.favSpells || p.spells.slice(0, 4))) if (p.spells.includes(sp)) s.push({ kind: 'spell', id: sp });
@@ -19503,16 +19519,18 @@ function renderHotbar() {
     if (!h) return `<div class="hslot empty" aria-hidden="true"><span class="hk">${k}</span></div>`;
     let img, count = '', title, dim = false, cool = '';
     if (h.kind === 'weapon' || h.kind === 'item') { img = icon(h.it); count = h.it.q > 1 ? h.it.q : ''; title = h.kind === 'weapon' ? `${itemName(h.it)} (equipped)` : itemName(h.it); }
+    if (h.kind === 'tool') { img = icon(h.it); title = p.ready === h.it.uid ? `${itemName(h.it)} (in hand: tap to put away)` : `${itemName(h.it)} (tap to take in hand)`; }
     if (h.kind === 'spell') { img = spriteImg(spellIcon(h.id), 32); title = `${SPELLS[h.id].name}, ${spellCost(h.id)} MP`; dim = p.mp < spellCost(h.id); }
     if (h.kind === 'gift') ({ img, title, dim, cool } = giftSlotView(h));
     if (h.kind === 'god') { img = spriteImg(propCanvas('shrine_' + h.id), 32); title = GODS[h.id].power.name; if (prayedOut(h.id)) { dim = true; cool = '<span class="cool">Tomorrow</span>'; } }
-    return `<button class="hslot ${h.kind === 'weapon' ? 'equipped' : ''} ${dim ? 'dim' : ''}" data-a="hot" data-v="${i}" title="${esc(title)} (${k})" aria-label="${esc(title)}">${img}<span class="hk">${k}</span>${count ? `<span class="hc">${count}</span>` : ''}${cool}</button>`;
+    return `<button class="hslot ${h.kind === 'weapon' && !p.ready || h.kind === 'tool' && p.ready === h.it.uid ? 'equipped' : ''} ${typeof PAD !== 'undefined' && PAD.using && PAD.sel === i ? 'padsel' : ''} ${dim ? 'dim' : ''}" data-a="hot" data-v="${i}" title="${esc(title)} (${k})" aria-label="${esc(title)}">${img}<span class="hk">${k}</span>${count ? `<span class="hc">${count}</span>` : ''}${cool}</button>`;
   }).join('');
 }
 function useHot(i) {
   if (modalOpen || dead || !S) return;
   const h = hotbarSlots[i]; if (!h) return;
-  if (h.kind === 'weapon') return openHero('inv');
+  if (h.kind === 'weapon') { if (P().ready && typeof readyTool === 'function') return readyTool(null); return openHero('inv'); }
+  if (h.kind === 'tool') return typeof readyTool === 'function' ? readyTool(P().ready === h.it.uid ? null : h.it) : null;
   if (h.kind === 'item') return useItem(h.it);
   if (h.kind === 'spell') return cast(h.id);
   if (h.kind === 'god') return invoke(h.id);
@@ -23759,11 +23777,12 @@ function actionUi(show) {
 // ---------------- game controllers ----------------
 // Any standard controller (Backbone, Kishi, Xbox, PlayStation, Switch Pro) on a phone, tablet or computer.
 // Left stick or D-pad moves (push the stick all the way to run). A acts: talks, opens, gathers, or swings in a fight
-// (hold for a heavy blow). B dodges, LB/LT block, X picks up, Y opens your pack, RB casts your first spell, RT shoots,
+// (hold for a heavy blow). B dodges, LT blocks, X picks up, Y opens your pack, LB/RB step through the hotbar and RT
+// uses what's picked (or shoots, on the weapon slot),
 // R3 rests, Select/View opens the journal, Start/Menu the game menu.
 // In any window the D-pad or stick moves between buttons, A presses, B goes back, and LB/RB switch tabs.
 const PAD = { prev: [], dir: null, lastNotice: 0, navT: 0, focus: null, using: false };
-window.addEventListener('gamepadconnected', e => { if (S) msg(`Controller connected: ${e.gamepad.id.replace(/\(.*\)/, '').trim() || 'gamepad'}. A acts, B dodges, X takes, Y opens your pack, R3 rests, Start for the menu.`, 'news'); });
+window.addEventListener('gamepadconnected', e => { if (S) msg(`Controller connected: ${e.gamepad.id.replace(/\(.*\)/, '').trim() || 'gamepad'}. A acts, B dodges, X takes, Y your pack, LB/RB pick from the hotbar and RT uses it, R3 rests, Start for the menu.`, 'news'); });
 // moving between buttons in a window or on the title screen
 function padScope() {
   const hub = document.getElementById('hub'); if (hub && hub.classList.contains('show')) return hub;
@@ -23855,10 +23874,9 @@ function padTick() {
     if (down(0)) { if (typeof AC !== 'undefined' && AC.on) chargeStart(); else if (typeof phoneAct === 'function') phoneAct(); else getAction(); }
     if (up(0) && typeof AC !== 'undefined' && AC.charge) chargeRelease();
     if (down(1)) dodge();
-    const blk = b(4) || b(6); if (blk && !AC.blocking && AC.sta > 5) AC.blocking = true; if (!blk && (was(4) || was(6))) AC.blocking = false;
+    const blk = b(6); if (blk && !AC.blocking && AC.sta > 5) AC.blocking = true; if (!blk && was(6)) AC.blocking = false;
     if (down(2)) getAction();
     if (down(7)) fire();
-    if (down(5)) { const p = P(), sp = (p.favSpells || p.spells)[0]; if (sp) cast(sp); }
     if (down(3)) openHero('inv');
     if (down(11)) restAction();
     if (down(10) && typeof runToggle !== 'undefined') { runToggle = !runToggle; msg(runToggle ? 'Running.' : 'Walking.'); }
@@ -25555,7 +25573,7 @@ onDraw(() => {
 
 </script>
 <script>/* dig.js */
-// Digging: with a pickaxe in your pack, walk into the rock of a cave wall and you start hewing at it. A few
+// Digging: with a pickaxe in your hand (take it from the hotbar), walk into the rock of a cave wall and you start hewing at it. A few
 // blows (fewer if you're strong, or have the Prospector's knack) and it gives way into open floor. The rubble
 // yields stone, now and then ore, and once in a long while something someone hid in the rock long ago.
 // Not the outer edge of a level, not doors, stairs or shrines, and never in town.
@@ -25575,6 +25593,11 @@ function digAt(x, y) {
   const k = K(x, y), hits = (m.dig[k] || 0) + 1;
   if (typeof sfx === 'function') { try { sfx('thunk'); } catch (e) { } }
   if (typeof AC !== 'undefined') AC.swingFx = { t0: performance.now(), d: [x - p.x, y - p.y], heavy: false };
+  playAnim(p, 'atk', { x, y });
+  // chips and grit fly back from the face of the rock
+  const rockC = ['#8a8178', '#6e665e', '#a39a8f', '#544c45'];
+  if (typeof fxBurst === 'function') { fxBurst(x + (p.x - x) * 0.35, y + (p.y - y) * 0.35, { n: 9, colors: rockC, speed: 2.4, life: 420, size: 2, gravity: 6, up: 1.2 }); fxBurst(x + (p.x - x) * 0.3, y + (p.y - y) * 0.3, { n: 5, colors: ['rgba(190,180,165,0.55)'], speed: 0.8, life: 700, size: 4, gravity: -0.4 }); }
+  m.digHit = { k: K(x, y), t: performance.now() };
   if (hits < digNeeded()) {
     m.dig[k] = hits;
     if (!m.digHinted) { m.digHinted = 1; msg('You set your pickaxe to the rock. Chips fly. Keep at it.', 'talk'); }
@@ -25582,6 +25605,8 @@ function digAt(x, y) {
   }
   delete m.dig[k];
   setTile(m, x, y, '.');
+  if (typeof fxBurst === 'function') { fxBurst(x, y, { n: 22, colors: rockC, speed: 3.2, life: 650, size: 2.6, gravity: 7, up: 1.5 }); fxBurst(x, y, { n: 10, colors: ['rgba(200,190,175,0.5)', 'rgba(160,150,140,0.45)'], speed: 1.1, life: 1100, size: 6, gravity: -0.3 }); }
+  if (typeof shake === 'function') shake(120, 3);
   m.dug = (m.dug || 0) + 1;
   S.dugTotal = (S.dugTotal || 0) + 1;
   const loot = [];
@@ -25602,26 +25627,49 @@ function digAt(x, y) {
   onBump((dx, dy) => {
         const m = curMap(), p = P(), x = p.x + dx, y = p.y + dy;
         if (canDigHere(m, x, y) && !m.mons.some(o => o.x === x && o.y === y)) {
-          if (hasTool('pick')) { setFacing(p, dx, dy); if (typeof AC !== 'undefined') AC.dir = [dx, dy]; digAt(x, y); return true; }
+          if (typeof toolReady === 'function' ? toolReady('pick') : hasTool('pick')) { setFacing(p, dx, dy); if (typeof AC !== 'undefined') AC.dir = [dx, dy]; digAt(x, y); return true; }
+          if (hasTool('pick')) { const now = performance.now(); if (!m.readyHintT || now - m.readyHintT > 6000) { m.readyHintT = now; msg('Solid rock. Take your pickaxe in hand first: tap it on your hotbar.', 'talk'); } return false; }
           if (!m.noPickHint) { m.noPickHint = 1; msg('Solid rock. With a pickaxe from Wendell’s you could dig through it.', 'talk'); }
         }
   });
 }
-// cracks spread across the rock you are working on
+// the rock you are working on, drawn in the game's own pixels: fissures one pixel wide with a lit lower lip, that
+// spread and branch with each blow; chips knocked out of the face; a shudder of the stone just after a strike
 onDraw(() => {
     try {
       const m = S && curMap(); if (!m || !m.dig) return;
-      const r = cvs.getBoundingClientRect(), [ox, oy] = viewOffset(r.width, r.height), need = digNeeded();
-      ctx.save(); ctx.strokeStyle = 'rgba(20,14,10,0.85)'; ctx.lineWidth = Math.max(1.5, TS / 20); ctx.lineCap = 'round';
+      const r = cvs.getBoundingClientRect(), [ox, oy] = viewOffset(r.width, r.height), need = digNeeded(), now = performance.now();
+      const q = TS / 32 * 1.5;   // one "pixel" of the art, a touch chunky so it reads on a phone
+      ctx.save();
+      // the rock is behind whoever stands in front of it: leave the people standing below it uncovered
+      ctx.beginPath(); ctx.rect(0, 0, cvs.width, cvs.height);
+      for (const who of [P(), ...(m.npcs || []).filter(n => n.comp), ...m.mons]) { const v = visualPos(who); if (!m.dig[K(Math.round(v.x), Math.round(v.y) - 1)] && !m.dig[K(Math.round(v.x) + 1, Math.round(v.y) - 1)] && !m.dig[K(Math.round(v.x) - 1, Math.round(v.y) - 1)]) continue; ctx.rect(ox + (v.x + 0.08) * TS, oy + (v.y + 1) * TS, TS * 0.84, -TS * 1.6); }
+      ctx.clip('evenodd');
       for (const k in m.dig) {
-        const [x, y] = k.split(',').map(Number), n = m.dig[k], f = n / need;
-        const cx = ox + (x + 0.5) * TS, cy = oy + (y + 0.5) * TS;
-        let s = (x * 73856093 ^ y * 19349663) >>> 0; const rnd = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
-        for (let i = 0; i < 3 + n * 2; i++) {
-          let px = cx, py = cy, a = rnd() * Math.PI * 2; ctx.beginPath(); ctx.moveTo(px, py);
-          for (let j = 0; j < 3; j++) { a += (rnd() - 0.5) * 1.2; const l = TS * (0.12 + 0.18 * f) * (0.6 + rnd()); px += Math.cos(a) * l; py += Math.sin(a) * l; ctx.lineTo(px, py); }
-          ctx.stroke();
+        const [x, y] = k.split(',').map(Number), n = m.dig[k], f = Math.min(1, n / need);
+        const hitAge = m.digHit && m.digHit.k === k ? now - m.digHit.t : 999, jolt = hitAge < 160 ? Math.round(Math.sin(hitAge / 160 * Math.PI * 3) * (1 - hitAge / 160) * 1.5) * q : 0;
+        const x0 = ox + x * TS + jolt, y0 = oy + y * TS, G = Math.floor(TS / q);
+        let sd = (x * 73856093 ^ y * 19349663) >>> 0; const rnd = () => ((sd = (sd * 1103515245 + 12345) >>> 0) / 4294967296);
+        const dark = new Set(), mark = (i, j) => { if (i >= 1 && j >= 1 && i < G - 1 && j < G - 1) dark.add(i + ',' + j); };
+        // fissures: random walks on the pixel grid from where the pick struck, more and longer with each blow
+        const pl = P(), below = pl.y === y + 1 && Math.abs(pl.x - x) <= 1, sx = Math.floor(G * 0.5), sy = Math.floor(G * (below ? 0.3 : 0.55));   // over your head, the crack shows above it
+        for (let b = 0; b < 2 + n; b++) {
+          let i = sx, j = sy, a = rnd() * Math.PI * 2;
+          const len = Math.floor(G * (0.16 + 0.22 * f) * (0.6 + rnd() * 0.8));
+          for (let t = 0; t < len; t++) {
+            a += (rnd() - 0.5) * 0.9; i += Math.round(Math.cos(a)); j += Math.round(Math.sin(a) * 0.8); mark(i, j);
+            if (rnd() < 0.08 * f) { let bi = i, bj = j, ba = a + (rnd() < 0.5 ? 1 : -1) * 1.1; for (let u = 0; u < 3 + f * 4; u++) { ba += (rnd() - 0.5) * 0.8; bi += Math.round(Math.cos(ba)); bj += Math.round(Math.sin(ba)); mark(bi, bj); } }
+          }
         }
+        // chips knocked out around the strike: small dark pits
+        for (let c = 0; c < n * 2; c++) { const i = sx + Math.round((rnd() - 0.5) * G * 0.5), j = sy + Math.round((rnd() - 0.5) * G * 0.36); mark(i, j); if (rnd() < 0.4) mark(i + 1, j); }
+        // the lit lip below and right of every crack, then the crack itself
+        ctx.fillStyle = 'rgba(240,226,204,0.42)';
+        for (const key of dark) { const [i, j] = key.split(',').map(Number); if (!dark.has(i + ',' + (j + 1))) ctx.fillRect(x0 + i * q, y0 + (j + 1) * q, q, q); }
+        ctx.fillStyle = 'rgba(22,15,11,0.85)';
+        for (const key of dark) { const [i, j] = key.split(',').map(Number); ctx.fillRect(x0 + i * q, y0 + j * q, q, q); }
+        // the shadow inside the deepest cracks, once the stone is close to giving
+        if (f >= 0.66) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; for (const key of dark) { const [i, j] = key.split(',').map(Number); ctx.fillRect(x0 + (i - 1) * q, y0 + j * q, q, q); } }
       }
       ctx.restore();
     } catch (e) { }
@@ -29738,6 +29786,75 @@ setPace(paceName);
   document.addEventListener('change', e => { if (!e.target.dataset || !e.target.dataset.shake) return; FEEL.noShake = !e.target.checked; try { localStorage.setItem('tw-shake', FEEL.noShake ? '0' : '1'); } catch (er) { } if (!FEEL.noShake) shake(160, 4); });
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-pace]'); if (!b) return; setPace(b.dataset.pace); if (modalRefresh) modalRefresh(); else { const sh = document.querySelector('#modal .sheet'); if (sh && typeof htmlOptions === 'function' && document.querySelector('#modal [data-shake]')) sh.innerHTML = htmlOptions(); } msg(`Walking pace: ${paceName}.`); });
+
+</script>
+<script>/* tools.js */
+// Tools in hand. A pickaxe has to be taken in hand (from the hotbar) before you can dig: your weapon goes on
+// your back and the pick shows in your hands. Tap it again, tap your weapon, or get into a fight, and you put
+// it away. Also: a Rest button on phones and tablets whenever it's safe, and controller bumpers that step
+// through the hotbar (the right trigger uses whatever is picked).
+'use strict';
+
+const TOOL_ART = { pick: 'pickaxe' };
+function readyTool(it) {
+  const p = P();
+  if (!it) { if (p.ready) { const old = p.inv.find(i => i.uid === p.ready); p.ready = null; if (old) msg(`You put the ${itemName(old).toLowerCase()} away.`); } }
+  else { p.ready = it.uid; msg(`You take the ${itemName(it).toLowerCase()} in hand.${T(it).tool === 'pick' ? ' Walk into rock to dig.' : ''}`, 'talk'); playAnim(p, 'work'); if (typeof sfx === 'function') sfx('pickup'); }
+  render(); if (typeof renderHotbar === 'function') renderHotbar();
+}
+function readyItem() { const p = P(); if (!p.ready) return null; const it = p.inv.find(i => i.uid === p.ready); if (!it) p.ready = null; return it || null; }
+const toolReady = tool => { const it = readyItem(); return !!(it && T(it).tool === tool); };
+// how the hero looks with a tool out: the tool in the hands, no shield or torch in the way
+function readyLook(p) {
+  const spec = heroSpec(p.equip, p.look), it = readyItem(); if (!it) return spec;
+  return Object.assign({}, spec, { held: TOOL_ART[T(it).tool] || 'hammer', offhand: undefined });
+}
+// a fight puts the tool away: you reach for your weapon
+{
+  const _atk = attack;
+  attack = function (mon) { const p = P(); if (p && p.ready && mon && !MONSTERS[mon.id].prey) { p.ready = null; msg('You drop the tool to your belt and draw your weapon.'); } return _atk.apply(this, arguments); };
+}
+
+// ---------------- Rest, right by the thumbs ----------------
+function restButton() {
+  const pad = document.getElementById('phonepad'); if (!pad || document.getElementById('pp-r')) return;
+  const b = document.createElement('button'); b.id = 'pp-r'; b.setAttribute('aria-label', 'Rest');
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v6M3 15h18M7 9V7"/><path d="M15 4h4l-4 4h4"/></svg><span>Rest</span>';
+  b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (S && !modalOpen && !dead) restAction(); });
+  b.addEventListener('click', e => e.stopPropagation());
+  pad.appendChild(b);
+}
+function restCheck() {
+  const b = document.getElementById('pp-r'); if (!b || !S) return;
+  let show = false, hurt = false;
+  try { const p = P(), m = curMap(); hurt = p.hp < maxHp() || p.mp < maxMp() || !!p.st.poison; show = !m.mons.some(o => monVisible(o) && !MONSTERS[o.id].prey); } catch (e) { }
+  b.classList.toggle('show', show); b.classList.toggle('hurt', show && hurt);
+}
+restButton(); setInterval(restCheck, 400);
+
+// ---------------- the controller's hotbar ----------------
+{
+  if (typeof PAD !== 'undefined') PAD.sel = 0;
+  let prev = [];
+  (function hotPad() {
+    requestAnimationFrame(hotPad);
+    const g = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null; if (!g || !S || typeof PAD === 'undefined') return;
+    const b = i => !!(g.buttons[i] && (g.buttons[i].pressed || g.buttons[i].value > 0.5)), down = i => b(i) && !prev[i];
+    if (!modalOpen && !dead && !(document.getElementById('hub') || {}).classList?.contains('show')) {
+      const n = Math.max(1, hotbarSlots.length);
+      if (down(4) || down(5)) { PAD.sel = ((PAD.sel || 0) + (down(5) ? 1 : -1) + n) % n; renderHotbar(); const h = hotbarSlots[PAD.sel]; if (h) msg(`Selected: ${h.it ? itemName(h.it) : h.kind === 'spell' ? SPELLS[h.id].name : h.kind === 'god' ? GODS[h.id].power.name : 'your Gift'}.`); }
+    }
+    prev = g.buttons.map(x => x.pressed || x.value > 0.5);
+  })();
+  // the right trigger uses what's picked (a bow on the weapon slot still shoots)
+  const _fire = fire;
+  fire = function () {
+    if (typeof PAD === 'undefined' || !PAD.using) return _fire.apply(this, arguments);
+    const h = hotbarSlots[PAD.sel || 0];
+    if (!h || h.kind === 'weapon') return _fire.apply(this, arguments);
+    return useHot(PAD.sel);
+  };
+}
 
 </script>
 
