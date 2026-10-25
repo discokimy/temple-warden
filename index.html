@@ -17024,7 +17024,8 @@ function addFloat(tx, ty, text, color, big) {
   floaters.push({ tx, ty, text: String(text), color, big: !!big, t0: performance.now(), dx: (Math.random() - 0.5) * 0.4 });
   if (!floatRAF) floatRAF = requestAnimationFrame(floatTick);
 }
-function floatTick() { floatRAF = 0; renderMap(); if (floaters.length || tracers.length || anyMoving) floatRAF = requestAnimationFrame(floatTick); }
+let floatLast = 0;
+function floatTick(t) { floatRAF = 0; if (t && t - floatLast < 14) { floatRAF = requestAnimationFrame(floatTick); return; } floatLast = t || performance.now(); renderMap(); if (floaters.length || tracers.length || anyMoving) floatRAF = requestAnimationFrame(floatTick); }
 // ---- motion: people and creatures glide from tile to tile and step as they go ----
 // Runtime only: nothing here is saved. visualPos() is where something appears; its x/y are where it really is.
 const MOVE_MS = 140;
@@ -17126,7 +17127,7 @@ function visualPos(obj) {
   if (k >= 1) return { x: obj.x, y: obj.y, frame: -1, bob: 0 };
   anyMoving = true;
   const e = mv.linear ? k : easeMove(k);
-  return { x: mv.fx + (mv.tx - mv.fx) * e, y: mv.fy + (mv.ty - mv.fy) * e, frame: Math.floor((now - mv.walkT0) / (mv.dur / 2)) % 4, bob: 0 };
+  return { x: mv.fx + (mv.tx - mv.fx) * e, y: mv.fy + (mv.ty - mv.fy) * e, frame: Math.floor((now - mv.walkT0) / (mv.dur / 2)) % 4, bob: Math.abs(Math.sin(Math.PI * (now - mv.walkT0) / (mv.stepMs || mv.dur))) };
 }
 
 // ================= messages =================
@@ -19066,8 +19067,8 @@ function renderMap() {
   const actors = [];
   anyMoving = false;
   // creatures use their sprite with a lifted foot while moving; people are drawn whole by the figure system
-  const actor = (obj, c, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: v.frame >= 0 ? walkFrames(c)[v.frame % 2] : c, bob: v.frame >= 0 ? Math.sin(v.frame * Math.PI / 2) ** 2 : 0 }, extra); };
-  const person = (obj, spec, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: figure(spec, facingOf(obj), poseOf(obj, v)), bob: 0 }, extra); };
+  const actor = (obj, c, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: v.frame >= 0 ? walkFrames(c)[v.frame % 2] : c, bob: v.bob || 0 }, extra); };
+  const person = (obj, spec, extra) => { const v = visualPos(obj), o = animOffset(obj); return Object.assign({ y: v.y + o[1], x: v.x + o[0], flash: o[2], c: figure(spec, facingOf(obj), poseOf(obj, v)), bob: (v.bob || 0) * 0.7 }, extra); };
   for (const n of m.npcs) {
     const mark = n.prop ? null : npcMark(whoOf(n));
     if (!n.prop && FIG_SPECS[n.spr]) actors.push(person(n, FIG_SPECS[n.spr], { mark }));
@@ -19226,9 +19227,10 @@ function renderMap() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const f of floaters) {
       const k = (now - f.t0) / 950;
-      const x = ox + (f.tx + 0.5 + f.dx) * TS, y = oy + f.ty * TS + TS * 0.1 - (reduceMotion ? 0 : k * TS * 0.9);
-      ctx.globalAlpha = Math.max(0, 1 - k * k);
-      ctx.font = `700 ${f.big ? Math.round(TS * 0.75) : Math.round(TS * 0.5)}px "Figtree", sans-serif`;
+      const rise = 1 - (1 - k) * (1 - k), pop = reduceMotion ? 1 : k < 0.1 ? 0.55 + k / 0.1 * 0.75 : Math.max(1, 1.3 - (k - 0.1) * 3);
+      const x = ox + (f.tx + 0.5 + f.dx * rise) * TS, y = oy + f.ty * TS + TS * 0.1 - (reduceMotion ? 0 : rise * TS * 0.85);
+      ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.55) / 0.45);
+      ctx.font = `700 ${Math.round((f.big ? TS * 0.75 : TS * 0.5) * pop)}px "Figtree", sans-serif`;
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.strokeText(f.text, x, y);
       ctx.fillStyle = f.color; ctx.fillText(f.text, x, y);
     }
@@ -23839,8 +23841,9 @@ function padTick() {
 requestAnimationFrame(padTick);
 
 // ---------------- feel: hit-stop, shake, knockback, the hurt flash, and lunging hunters ----------------
-const FEEL = { shakeUntil: 0, shakeMag: 0, flashUntil: 0 };
-function shake(ms, mag) { FEEL.shakeUntil = Math.max(FEEL.shakeUntil, performance.now() + ms); FEEL.shakeMag = Math.max(FEEL.shakeMag, mag); }
+const FEEL = { shakeUntil: 0, shakeMag: 0, flashUntil: 0, noShake: false };
+try { FEEL.noShake = localStorage.getItem('tw-shake') === '0'; } catch (e) { }
+function shake(ms, mag) { if (FEEL.noShake) return; FEEL.shakeUntil = Math.max(FEEL.shakeUntil, performance.now() + ms); FEEL.shakeMag = Math.max(FEEL.shakeMag, mag); }
 function hitStop(ms) { AC.worldT += ms; AC.ready += ms * 0.5; }
 (function feelLoop() {
   requestAnimationFrame(feelLoop);
@@ -23871,7 +23874,7 @@ function hitStop(ms) { AC.worldT += ms; AC.ready += ms * 0.5; }
   };
   // being hurt: a jolt and a red edge to the world
   const _ma2 = monsterAttack;
-  monsterAttack = function (mon, reach) { const p = P(), hp = p.hp, out = _ma2(mon, reach); if (p.hp < hp) { shake(220, 7); FEEL.flashUntil = performance.now() + 300; } return out; };
+  monsterAttack = function (mon, reach) { const p = P(), hp = p.hp, out = _ma2(mon, reach); if (p.hp < hp) { const f = Math.min(1, (hp - p.hp) / maxHp() * 4); shake(140 + f * 120, 2.5 + f * 5); FEEL.flashUntil = performance.now() + 180 + f * 160; } return out; };
 }
 // hunters that lunge: fast beasts gather themselves a few tiles off, then leap in and strike
 const LUNGERS = new Set(['wolf', 'boar', 'h_hound', 'greymaw', 'bear', 'r_skulker', 'h_stalker']);
@@ -29654,6 +29657,50 @@ document.addEventListener('change', e => {
   if (!MIX.on) { try { mediaUnlock(); sndApply(); } catch (er) { } }
   msg(MIX.on ? 'Your own music can play now. Start it in your music app and come back.' : 'The game\'s music is back.', 'good');
 });
+
+</script>
+<script>/* animtune.js */
+// Feel, tuned. Letting go of the stick now slows Corin to a stop instead of halting him dead mid-stride; blows
+// you land in bump combat jolt the screen a little (live combat already did); and screen shake can be turned off.
+'use strict';
+
+// ---- a soft stop: when the walk input ends, the glide in progress eases out at the speed it was going ----
+function easeStop(obj) {
+  const mv = motion.get(obj); if (!mv || !mv.linear || mv.tx !== obj.x || mv.ty !== obj.y) return;
+  const now = performance.now(), k = (now - mv.t0) / mv.dur; if (k >= 1 || k <= 0) return;
+  const r = 1 - k, cx = mv.fx + (mv.tx - mv.fx) * k, cy = mv.fy + (mv.ty - mv.fy) * k;
+  // an ease-out over twice the remaining time starts at exactly the speed the walk had
+  motion.set(obj, { fx: cx, fy: cy, tx: mv.tx, ty: mv.ty, t0: now, walkT0: mv.walkT0, stepMs: mv.stepMs || mv.dur, linear: false, dur: Math.max(40, 2 * r * mv.dur) });
+}
+{
+  let was = false;
+  (function watch() {
+    requestAnimationFrame(watch);
+    if (!S || reduceMotion) return;
+    const on = !!((typeof driving !== 'undefined' && driving) || (typeof heldKeys !== 'undefined' && heldKeys.size) || (typeof autoWalk !== 'undefined' && autoWalk));
+    if (was && !on) easeStop(P());
+    was = on;
+  })();
+}
+
+// ---- landing a blow in bump combat: a small jolt, more for a big hit ----
+{
+  const _atk = attack;
+  attack = function (mon, opts) {
+    const hp = mon && mon.hp, out = _atk.apply(this, arguments);
+    try { if (mon && mon.hp < hp && !(typeof AC !== 'undefined' && AC.on)) { const big = hp - mon.hp >= 6 || mon.hp <= 0; shake(big ? 130 : 80, big ? 3.5 : 2); } } catch (e) { }
+    return out;
+  };
+}
+
+// ---- Options: screen shake on or off ----
+{
+  const _ho = htmlOptions;
+  htmlOptions = function () {
+    return _ho.apply(this, arguments).replace('<h3>Performance</h3>', `<h3>Motion</h3><label class="opt"><input type="checkbox" data-shake="1" ${FEEL.noShake ? '' : 'checked'}><span><b>Screen shake</b><small>The world jolts when you land a heavy blow or take a hit.</small></span></label><h3>Performance</h3>`);
+  };
+  document.addEventListener('change', e => { if (!e.target.dataset || !e.target.dataset.shake) return; FEEL.noShake = !e.target.checked; try { localStorage.setItem('tw-shake', FEEL.noShake ? '0' : '1'); } catch (er) { } if (!FEEL.noShake) shake(160, 4); });
+}
 
 </script>
 
