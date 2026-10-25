@@ -17031,7 +17031,7 @@ function floatTick(t) { floatRAF = 0; if (t && t - floatLast < 14) { floatRAF = 
 const MOVE_MS = 140;
 // Walking pace when Corin is held to a direction, steered or sent somewhere: one tile every WALK_MS, and each step's
 // glide lasts exactly that long so steps run into each other with no stop-start.
-const WALK_MS = 215, RUN_MS = 128, NPC_MS = 520;
+let WALK_MS = 250, RUN_MS = 140; const NPC_MS = 520;   // walking pace can be changed in Options (animtune.js)
 let walkPace = false, runToggle = false, shiftRun = false;
 try { runToggle = localStorage.getItem('tw-run') === '1'; } catch (e) { }
 // walking unless running is switched on; Shift flips it while held
@@ -29693,14 +29693,22 @@ function easeStop(obj) {
   };
 }
 
+// ---- walking pace: relaxed, normal or brisk ----
+const PACES = { relaxed: [290, 165], normal: [250, 140], brisk: [215, 125] };
+let paceName = 'normal';
+try { paceName = localStorage.getItem('tw-pace') || 'normal'; if (!PACES[paceName]) paceName = 'normal'; } catch (e) { }
+function setPace(n) { paceName = PACES[n] ? n : 'normal'; [WALK_MS, RUN_MS] = PACES[paceName]; try { localStorage.setItem('tw-pace', paceName); } catch (e) { } }
+setPace(paceName);
+
 // ---- Options: screen shake on or off ----
 {
   const _ho = htmlOptions;
   htmlOptions = function () {
-    return _ho.apply(this, arguments).replace('<h3>Performance</h3>', `<h3>Motion</h3><label class="opt"><input type="checkbox" data-shake="1" ${FEEL.noShake ? '' : 'checked'}><span><b>Screen shake</b><small>The world jolts when you land a heavy blow or take a hit.</small></span></label><h3>Performance</h3>`);
+    return _ho.apply(this, arguments).replace('<h3>Performance</h3>', `<h3>Motion</h3><div class="opt"><span><b>Walking pace</b><small>How quickly your hero crosses a tile. Running is quicker at every pace.</small></span></div><div class="btnrow">${Object.keys(PACES).map(k => `<button class="btn ${k === paceName ? 'default' : ''}" data-pace="${k}">${cap(k)}</button>`).join('')}</div><label class="opt"><input type="checkbox" data-shake="1" ${FEEL.noShake ? '' : 'checked'}><span><b>Screen shake</b><small>The world jolts when you land a heavy blow or take a hit.</small></span></label><h3>Performance</h3>`);
   };
   document.addEventListener('change', e => { if (!e.target.dataset || !e.target.dataset.shake) return; FEEL.noShake = !e.target.checked; try { localStorage.setItem('tw-shake', FEEL.noShake ? '0' : '1'); } catch (er) { } if (!FEEL.noShake) shake(160, 4); });
 }
+document.addEventListener('click', e => { const b = e.target.closest('[data-pace]'); if (!b) return; setPace(b.dataset.pace); if (modalRefresh) modalRefresh(); else { const sh = document.querySelector('#modal .sheet'); if (sh && typeof htmlOptions === 'function' && document.querySelector('#modal [data-shake]')) sh.innerHTML = htmlOptions(); } msg(`Walking pace: ${paceName}.`); });
 
 </script>
 
