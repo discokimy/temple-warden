@@ -1040,6 +1040,18 @@ body.phone .sheet-tabs .stab { flex: none; min-height: 38px; }
 body.tablet #phonepad #pp-r.show { right: 76px; bottom: 150px; width: 88px; height: 42px; font-size: 14px; }
 /* the controller's picked hotbar slot */
 .hslot.padsel { outline: 3px solid #9fd0f5; outline-offset: 1px; box-shadow: 0 0 12px rgba(160, 210, 255, 0.5); }
+/* the iPad title: the same arrangement as the phone, sized up and centred */
+body.tablet .title-ui { inset: 0; margin: 0 auto; justify-content: flex-end; align-items: stretch; max-width: 560px; padding: calc(env(safe-area-inset-top) + 28px) 24px calc(env(safe-area-inset-bottom) + 28px); gap: 14px; }
+body.tablet .title-logo { margin-bottom: auto; padding-top: 3vh; text-align: center; }
+body.tablet .title-logo h1 { font-size: clamp(48px, 7vw, 72px); text-shadow: 0 3px 0 #3a1a0a, 0 10px 30px rgba(0,0,0,0.6); }
+body.tablet .title-logo::after { display: none; }
+body.tablet .title-kicker { justify-content: center; }
+body.tablet .title-foot { text-align: center; }
+body.tablet nav.title-menu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: none; }
+body.tablet nav.title-menu .tbtn { grid-column: span 3; padding: 14px 20px; border-radius: 14px; }
+body.tablet nav.title-menu .tbtn:nth-last-child(-n+3) { grid-column: span 1; padding: 12px 6px; align-items: center; justify-content: center; text-align: center; font-size: 14px; line-height: 1.15; }
+body.tablet nav.title-menu .tbtn.ghost { background: rgba(22, 16, 30, 0.5); border-color: rgba(255, 236, 200, 0.14); }
+@media (orientation: landscape) { body.tablet .title-ui { max-width: 520px; gap: 10px; } body.tablet .title-logo { padding-top: 0; } body.tablet .title-logo h1 { font-size: clamp(34px, 4.6vw, 52px); } body.tablet nav.title-menu .tbtn { padding: 11px 18px; } }
 </style>
 </head>
 <body>
@@ -20845,12 +20857,13 @@ function titleTick(now) {
   const c = $('#title-cv'), r = el.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   if (c.width !== Math.floor(r.width * dpr) || c.height !== Math.floor(r.height * dpr)) { c.width = Math.floor(r.width * dpr); c.height = Math.floor(r.height * dpr); }
   const g = c.getContext('2d'), W = c.width, H = c.height; g.imageSmoothingEnabled = false;
-  const narrow = r.width < 760;
+  // a tablet stands the scene like the phone does: the name above, the temple in the middle, the menu below
+  const tabletT = document.body.classList.contains('tablet'), narrow = r.width < 760 || (tabletT && r.height > r.width);
   // on a phone held upright the menu fills the bottom of the screen: the scene stands higher, under the title
-  const tall = H > W * 1.45;
-  const px = Math.max(3, Math.floor(Math.min(W / (narrow ? 170 : 330), H / 230))), ground = tall ? Math.round(H * 0.6) : H - px * 34;
+  const tall = H > W * 1.45 || tabletT;
+  const px = Math.max(3, Math.floor(Math.min(W / (narrow ? 170 : 330), H / 230))), ground = tall ? Math.round(H * (tabletT && W > H ? 0.65 : 0.6)) : H - px * 34;
   const drift = k => Math.round(Math.sin(now / 9000) * k * px) ; // slow parallax sway, more for nearer layers
-  const sunX = narrow ? W * 0.5 : W * 0.66, sunY = ground - px * 70;
+  const sunX = narrow || tabletT ? W * 0.5 : W * 0.66, sunY = ground - px * 70;
   const Q = v => Math.round(v / px) * px;
   // sky, deep violet into dawn gold
   const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#0e0a1e'); sky.addColorStop(0.38, '#2e1c44'); sky.addColorStop(0.6, '#7a3a5e'); sky.addColorStop(0.76, '#e0845a'); sky.addColorStop(0.86, '#ffc27a'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
@@ -20904,7 +20917,7 @@ function titleTick(now) {
   for (let y = ground; y < H; y += px) { const k = (y - ground) / (H - ground), cx = hx + gx + Math.sin(k * 3.2) * px * (narrow ? 14 : 30) - k * px * (narrow ? 0 : 40), w = px * (4 + k * 22); g.fillRect(Q(cx - w / 2), y, Q(w), px); }
   g.fillStyle = 'rgba(30,14,30,0.35)'; for (let y = ground; y < H; y += px * 3) { const k = (y - ground) / (H - ground), cx = hx + gx + Math.sin(k * 3.2) * px * (narrow ? 14 : 30) - k * px * (narrow ? 0 : 40), w = px * (4 + k * 22); g.fillRect(Q(cx - w / 2), y, px, px); g.fillRect(Q(cx + w / 2) - px, y + px, px, px); }
   // your acolyte at the foot of the path, his back to us, lantern lit
-  const hero = titleHero(), hs = px * 0.85, k0 = tall ? 0.22 : 0.5, hcx = hx + gx + Math.sin(k0 * 3.2) * px * (narrow ? 14 : 30) - k0 * px * (narrow ? 0 : 40), hy0 = ground + (H - ground) * k0;
+  const hero = titleHero(), hs = px * 0.85, k0 = tall ? (tabletT && W > H ? 0.1 : 0.22) : 0.5, hcx = hx + gx + Math.sin(k0 * 3.2) * px * (narrow ? 14 : 30) - k0 * px * (narrow ? 0 : 40), hy0 = ground + (H - ground) * k0;
   g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(hcx, hy0, 8 * hs, 2.4 * hs, 0, 0, Math.PI * 2); g.fill();
   g.drawImage(hero, Q(hcx - 16 * hs), Q(hy0 - 46 * hs + Math.sin(now / 900) * hs * 0.3), 32 * hs, 48 * hs);
   g.globalCompositeOperation = 'lighter'; glow(hcx - 9 * hs, hy0 - 22 * hs, 34 * hs, 0.3 * flick); g.globalCompositeOperation = 'source-over';
