@@ -29857,6 +29857,466 @@ restButton(); setInterval(restCheck, 400);
 }
 
 </script>
+<script>/* outposts.js */
+// Cavern outposts. Kits made anywhere (Crafting › Outposts) and set down in a cave level you know well: most of
+// it seen, or its ruler dead. Place one from your pack (or Menu › Place) on the tile you face; walk into it to use
+// it; long-press it, or use it, to pack it up again.
+//   camp     sleep safely till morning; nothing new crawls out of the dark nearby; the world map brings you back here
+//   chest    a stash that stays on this level
+//   rig      an ore sluice: a little stone and ore every day, kept for up to five days
+//   lantern  a post with a slime-oil lamp: a lasting light
+//   bench    work the forge and the brewing pot on site
+//   ladder   ropes and pegs: a quick climb to the level's stairs
+// State: each map's own m.outposts = { 'x,y': { k, day, last, items, mats } }, mirrored into decor, trig and lights.
+'use strict';
+
+const OUTP = {
+  camp:    { name: 'Camp Kit', mats: { wood: 4, hide: 2 }, wt: 6, val: 30, max: 1, light: 3, lk: 'brazier', what: 'A campfire and bedroll',
+             blurb: 'A ring of stones, dry kindling and a bedroll. Sleep here safely; nothing new comes out of the dark near a camp, and the world map can bring you back to it.' },
+  chest:   { name: 'Cave Chest Kit', mats: { wood: 6, iron: 1 }, wt: 8, val: 35, max: 1, what: 'A storage chest',
+             blurb: 'An iron-bound chest for this level. Whatever you leave in it stays put.' },
+  rig:     { name: 'Ore Sluice Kit', mats: { wood: 5, stone: 4, iron: 3 }, wt: 10, val: 60, max: 1, what: 'An ore sluice',
+             blurb: 'A windlass, a bucket and a sluice that sifts the cave’s runoff. Two stone and one ore a day, kept for up to five days. Deeper levels give better ore.' },
+  lantern: { name: 'Lantern Post Kit', mats: { wood: 2, iron: 2 }, wt: 4, val: 25, max: 4, light: 6, lk: 'lantern', what: 'A lantern post',
+             blurb: 'A post and a slime-oil lamp that never seems to burn down. It lights six tiles around it for good.' },
+  bench:   { name: 'Field Workbench Kit', mats: { wood: 6, iron: 2, stone: 2 }, wt: 9, val: 45, max: 1, what: 'A workbench',
+             blurb: 'A folding bench with a vise and a brazier. Smith and brew right here, as if at Bran’s forge or Tamsin’s cauldron.' },
+  ladder:  { name: 'Rope Ladder Kit', mats: { wood: 3, hide: 2 }, wt: 5, val: 25, max: 1, what: 'A rope ladder',
+             blurb: 'Knotted ropes and iron pegs strung along the walls. From here, a quick climb to either stair of the level.' },
+};
+const OUTP_EXPLORED = 0.6, OUTP_RIG_DAYS = 5, OUTP_SAFE_R = 7;
+for (const k in OUTP) {
+  const d = OUTP[k], id = 'op_' + k;
+  ITEMS[id] = { id, name: d.name, cat: 'outpost', tier: 9, val: d.val, wt: d.wt, use: 'place', outpost: k, note: d.what + ', to set down in a cave' };
+  if (typeof ITEM_LORE !== 'undefined') ITEM_LORE[id] = d.blurb;
+}
+if (typeof CAT_NAMES !== 'undefined') CAT_NAMES.outpost = 'Outposts';
+
+// ---------------- the art: native props on the 32 grid, inked like the village's ----------------
+NATIVE_PROPS.op_camp = () => nativeProp(32, 30, ({ F, P, E }) => {
+  // the bedroll, rolled and strapped, behind the fire
+  F(4, 5, 24, 8, '#7a3a2a'); F(4, 5, 24, 2, '#a4553a'); F(4, 11, 24, 2, '#5a2a1e'); for (let x = 6; x < 28; x += 4) F(x, 7, 1, 4, '#8a4a32');
+  E(4.5, 9, 2.5, 4, '#c9a46a'); E(4.5, 9, 1.2, 2, '#7a3a2a'); F(10, 5, 2, 8, '#3a2a1e'); F(21, 5, 2, 8, '#3a2a1e');
+  // the far stones of the ring
+  for (const [x, y] of [[7, 19], [12, 17], [20, 17], [25, 19]]) { E(x, y, 3, 2, '#7a756c'); F(x - 2, y - 2, 3, 1, '#a8a294'); }
+  // crossed logs, the embers, the flames
+  F(7, 21, 18, 3, '#6b4423'); F(7, 21, 18, 1, '#9a6a3a'); F(11, 19, 3, 6, '#5a3a20'); F(19, 19, 3, 6, '#5a3a20');
+  E(16, 22, 6, 2, '#c9343c'); E(16, 22, 3, 1, '#ff8a3a');
+  F(12, 13, 9, 8, '#e07b2c'); F(13, 10, 6, 6, '#f2a03b'); F(15, 6, 3, 6, '#f2a03b'); F(10, 15, 3, 5, '#e07b2c'); F(20, 14, 3, 6, '#e07b2c');
+  F(14, 13, 4, 7, '#ffd27a'); F(15, 11, 2, 4, '#fff1b0'); P(19, 9, '#ffd27a'); P(12, 11, '#f2a03b');
+  // the near stones
+  for (const [x, y] of [[5, 24], [10, 27], [16, 28], [22, 27], [27, 24]]) { E(x, y, 3, 2, '#8c867c'); F(x - 2, y - 2, 3, 1, '#bdb6a8'); }
+});
+NATIVE_PROPS.op_chest = () => nativeProp(32, 26, ({ F, P }) => {
+  F(4, 11, 24, 13, '#8a5a2b'); F(4, 11, 1, 13, '#a4743f'); F(27, 11, 1, 13, '#5a3a20'); for (const y of [15, 19]) F(5, y, 22, 1, '#6b4423');
+  F(3, 4, 26, 8, '#a4743f'); F(3, 4, 26, 2, '#c89a60'); F(3, 11, 26, 1, '#4a2e18');
+  for (const x of [7, 23]) { F(x, 4, 2, 20, '#3a3f46'); F(x, 4, 1, 20, '#6a737e'); }
+  F(14, 9, 4, 6, '#c9a84a'); F(14, 9, 4, 1, '#f3d36c'); P(15, 12, '#2a2a2a'); P(16, 12, '#2a2a2a'); P(15, 13, '#2a2a2a');
+  F(4, 24, 4, 2, '#4a2e18'); F(24, 24, 4, 2, '#4a2e18');
+});
+NATIVE_PROPS.op_rig = () => nativeProp(32, 48, ({ F, P, E }) => {
+  // the A-frame and its windlass
+  F(5, 6, 3, 34, '#6b4423'); F(5, 6, 1, 34, '#9a6a3a'); F(24, 6, 3, 34, '#5a3a20'); F(26, 6, 1, 34, '#4a2e18');
+  F(3, 6, 26, 4, '#8a5a2b'); F(3, 6, 26, 1, '#c89a60'); E(16, 8, 4, 3, '#6b4423'); F(28, 4, 2, 6, '#3a3f46'); F(28, 3, 4, 2, '#5a626c');
+  // the rope and its bucket
+  F(15, 10, 1, 15, '#c9a46a'); F(12, 24, 9, 8, '#6b4423'); F(12, 24, 9, 1, '#5a626c'); F(12, 31, 9, 1, '#3a3f46'); F(13, 25, 1, 6, '#8a5a2b');
+  // the sluice: a trough running with grey water, riffles across it
+  F(1, 35, 30, 6, '#8a5a2b'); F(1, 35, 30, 1, '#c89a60'); F(2, 36, 28, 3, '#5a7a8a'); F(2, 36, 28, 1, '#8fb0bf'); for (let x = 5; x < 30; x += 5) F(x, 36, 1, 3, '#4a2e18');
+  F(3, 41, 3, 5, '#5a3a20'); F(26, 41, 3, 5, '#5a3a20');
+  // what it has sifted: a heap of ore beside it
+  E(24, 45, 6, 2.5, '#5a5f66'); E(23, 44, 3, 1.5, '#8a8f96'); P(21, 45, '#c9784a'); P(26, 44, '#c9784a'); P(24, 46, '#f6f7fa');
+});
+NATIVE_PROPS.op_lantern = () => nativeProp(32, 64, ({ F, P, E }) => {
+  // stones heaped round the foot of the post
+  E(16, 60, 9, 3.5, '#6f6a62'); E(11, 59, 3, 2, '#8c867c'); E(21, 59, 3, 2, '#8c867c'); F(9, 57, 3, 1, '#bdb6a8'); F(19, 57, 3, 1, '#bdb6a8');
+  // the post, the arm, the bracket
+  F(13, 10, 4, 49, '#6b4423'); F(13, 10, 1, 49, '#9a6a3a'); F(16, 10, 1, 49, '#4a2e18');
+  F(13, 9, 14, 3, '#8a5a2b'); F(13, 9, 14, 1, '#c89a60'); F(17, 12, 2, 4, '#5a3a20');
+  // the lamp: a chain, an iron cap, warm glass, a drip tray
+  F(23, 12, 1, 4, '#3a3f46'); F(20, 16, 7, 2, '#2e3238'); P(23, 15, '#5a626c');
+  F(20, 18, 7, 9, '#2e3238'); F(21, 19, 5, 7, '#f2a03b'); F(22, 20, 3, 5, '#ffd27a'); F(23, 21, 1, 3, '#fff1b0'); F(23, 18, 1, 9, '#2e3238');
+  F(19, 27, 9, 2, '#3a3f46'); F(19, 27, 9, 1, '#6a737e');
+});
+NATIVE_PROPS.op_bench = () => nativeProp(32, 32, ({ F, P }) => {
+  F(3, 16, 3, 15, '#5a3a20'); F(26, 16, 3, 15, '#5a3a20'); F(3, 25, 26, 2, '#6b4423');
+  F(1, 12, 30, 4, '#a4743f'); F(1, 12, 30, 1, '#c89a60'); F(1, 15, 30, 1, '#5a3a20');
+  // a vise on the left end, a hammer and a pair of tongs on the top, a little brazier under it
+  F(2, 6, 7, 6, '#3a3f46'); F(2, 6, 7, 1, '#6a737e'); F(4, 4, 3, 2, '#2e3238'); F(8, 8, 3, 1, '#6a737e');
+  F(12, 9, 10, 2, '#6b4423'); F(20, 6, 4, 5, '#5a626c'); F(20, 6, 4, 1, '#8a929c');
+  F(24, 10, 6, 1, '#3a3f46'); F(24, 11, 6, 1, '#2e3238');
+  F(12, 21, 8, 4, '#3a3f46'); F(13, 20, 6, 2, '#c9343c'); P(15, 19, '#ffd27a'); P(17, 20, '#ff8a3a');
+});
+NATIVE_PROPS.op_ladder = () => nativeProp(32, 42, ({ F, E }) => {
+  // a frame of two poles and a crossbar, pegged with iron
+  F(5, 2, 3, 37, '#6b4423'); F(5, 2, 1, 37, '#9a6a3a'); F(24, 2, 3, 37, '#5a3a20');
+  F(3, 2, 26, 3, '#8a5a2b'); F(3, 2, 26, 1, '#c89a60'); for (const x of [6, 25]) F(x, 6, 1, 2, '#3a3f46');
+  // the ladder of rope hanging from it
+  F(11, 5, 1, 27, '#c9a46a'); F(20, 5, 1, 27, '#c9a46a'); for (let y = 8; y < 32; y += 5) { F(11, y, 10, 2, '#8a5a2b'); F(11, y, 10, 1, '#a4743f'); }
+  // the spare rope, coiled on the ground
+  E(16, 38, 7, 3, '#c9a46a'); E(16, 38, 4, 1.6, '#8a6a3a'); E(16, 38, 1.6, 0.8, '#c9a46a');
+});
+for (const k in OUTP) DECOR_BLOCK['op_' + k] = 1;
+if (typeof DECOR_NAMES !== 'undefined') for (const k in OUTP) DECOR_NAMES['op_' + k] = OUTP[k].what.toLowerCase().replace(/^a /, 'your ');
+// small square icons for the pack and the codex, drawn from the props
+const OUTP_ICONS = {};
+function outpIcon(k) {
+  if (OUTP_ICONS[k]) return OUTP_ICONS[k];
+  const src = nativePropCanvas('op_' + k), c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d'), s = Math.min(32 / src.width, 32 / src.height), w = Math.round(src.width * s), h = Math.round(src.height * s);
+  g.imageSmoothingEnabled = false; g.drawImage(src, Math.round((32 - w) / 2), 32 - h, w, h);
+  return (OUTP_ICONS[k] = c);
+}
+{
+  const _ic = itemCanvas;
+  itemCanvas = function (id) { const t = ITEMS[id]; if (t && t.outpost) return outpIcon(t.outpost); return _ic.apply(this, arguments); };
+}
+
+// ---------------- where an outpost can go ----------------
+const outpCave = m => !!(m && m.seen && !m.outdoor && !m.lit && m.id !== 'myhouse');
+const outpsOf = m => (m && m.outposts) || {};
+function outpExplored(m) {
+  let all = 0, seen = 0;
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if ((TILES[tileAt(m, x, y)] || {}).walk) { all++; if (m.seen[y * m.w + x]) seen++; }
+  return all ? seen / all : 0;
+}
+function outpRulerDead(m) {
+  try {
+    const info = mapInfo(m.id), b = info.kind === 'deep' ? 'wyrm' : KINGDOMS[info.kind] && info.lvl === 4 ? KINGDOMS[info.kind].boss : null;
+    return !!(b && S.bosses && S.bosses[b]);
+  } catch (e) { return false; }
+}
+const outpKnown = m => outpRulerDead(m) || outpExplored(m) >= OUTP_EXPLORED;
+function outpWhyNot(m, k) {
+  if (!outpCave(m)) return 'Outposts are for the caves. Set it down on a level under the mountain that you know well.';
+  if (!outpKnown(m)) return `You don’t know this level well enough to settle in it: you’ve seen ${Math.round(outpExplored(m) * 100)}% of it. Explore ${Math.round(OUTP_EXPLORED * 100)}%, or defeat its ruler.`;
+  const n = Object.values(outpsOf(m)).filter(o => o.k === k).length;
+  if (n >= OUTP[k].max) return OUTP[k].max === 1 ? `There is already ${OUTP[k].what.toLowerCase()} on this level.` : `This level already has ${n} of them.`;
+  if (m.mons.some(o => monVisible(o) && !MONSTERS[o.id].prey && !o.peace)) return 'Not with enemies in sight.';
+  return '';
+}
+function outpFree(m, x, y) {
+  const p = P(), k = K(x, y), c = tileAt(m, x, y);
+  if (!walkable(m, x, y) || c === '<' || c === '>' || c === '+' || c === 'G' || c === 'V' || c === '~') return false;
+  if (m.links[k] || m.trig[k] || m.decor[k] || m.marks[k]) return false;
+  if (m.mons.some(o => o.x === x && o.y === y) || m.npcs.some(o => o.x === x && o.y === y) || m.ground.some(g => g.x === x && g.y === y)) return false;
+  return !(p.x === x && p.y === y);
+}
+// the tile you face first; failing that, any open tile beside you
+function outpSpot(m) {
+  const p = P();
+  let d = typeof AC !== 'undefined' && AC.dir ? AC.dir : null;
+  if (!d || !(d[0] || d[1])) { const f = facingOf(p); d = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[f] || [0, 1]; }
+  const tries = [d, [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  for (const [dx, dy] of tries) if (outpFree(m, p.x + dx, p.y + dy)) return [p.x + dx, p.y + dy];
+  return null;
+}
+// put an outpost's pieces on the map (also re-run on arrival, so the map always matches m.outposts)
+function outpDress(m, x, y, o) {
+  const k = K(x, y), d = OUTP[o.k]; if (!d) return;
+  m.decor[k] = 'op_' + o.k; m.trig[k] = { outpost: 1 };
+  if (d.light && !m.lights.some(l => l[0] === x && l[1] === y)) { m.lights.push([x, y, d.light, d.lk]); setLit(m, null); }
+}
+function outpSync(m) { if (!m || !m.outposts) return; for (const k in m.outposts) { const [x, y] = k.split(',').map(Number); outpDress(m, x, y, m.outposts[k]); } }
+function outpPlace(it) {
+  const k = T(it).outpost, d = OUTP[k], m = curMap();
+  const why = outpWhyNot(m, k); if (why) { msg(why, 'warn'); return false; }
+  const spot = outpSpot(m); if (!spot) { msg('There’s no open floor beside you. Stand somewhere roomier, away from stairs and doorways.', 'warn'); return false; }
+  const [x, y] = spot, o = { k, day: S.day };
+  if (k === 'rig') o.last = S.day;
+  if (k === 'chest') { o.items = []; o.mats = {}; }
+  removeOne(it);
+  m.outposts = m.outposts || {}; m.outposts[K(x, y)] = o; outpDress(m, x, y, o);
+  const st = outpState(); st.placed[k] = (st.placed[k] || 0) + 1;
+  if (typeof cxBump === 'function') cxBump('outposts');
+  playAnim(P(), 'work'); if (typeof sfx === 'function') { try { sfx('door'); } catch (e) { } }
+  msg(`You set up ${d.what.toLowerCase()}. ${{ camp: 'The fire catches; this stretch of the cave is yours now.', chest: 'Walk into it to store things here.', rig: 'Come back each day for what it sifts.', lantern: 'Warm light spills over the stone.', bench: 'Walk into it to smith or brew on site.', ladder: 'Walk into it to climb straight to the stairs.' }[k]}`, 'good');
+  if (modalOpen) closeModal(true);
+  computeFov(); render(); if (typeof autosave === 'function') autosave();
+  return true;
+}
+const outpState = () => S.outp || (S.outp = { placed: {}, made: {} });
+
+// ---------------- crafting the kits: Crafting › Outposts ----------------
+const outpCanMake = k => Object.entries(OUTP[k].mats).every(([m, n]) => matAvail(m) >= n);
+function outpCraft(k) {
+  const d = OUTP[k]; if (!d || !outpCanMake(k)) return false;
+  for (const [m, n] of Object.entries(d.mats)) useMat(m, n);
+  const it = makeItem('op_' + k); it.crafted = 1; addItem(it);
+  const st = outpState(), first = !Object.keys(st.made).length; st.made[k] = (st.made[k] || 0) + 1;
+  msg(`You put together a ${d.name.toLowerCase()}.`, 'good');
+  if (first) msg('Journal: kits go in your pack. In a cave level you know well, choose Place (in your pack, or Menu › Place) to set it on the tile you face.', 'news');
+  if (typeof useSkill === 'function') useSkill('survival', 4);
+  if (typeof sfx === 'function') { try { sfx('pickup'); } catch (e) { } }
+  if (typeof refresh === 'function') refresh();
+  return true;
+}
+function outpList() {
+  const out = [];
+  for (const id in S.maps) { const m = S.maps[id]; for (const k in outpsOf(m)) out.push([id, m, k, m.outposts[k]]); }
+  return out;
+}
+function htmlOutposts() {
+  const rows = Object.entries(OUTP).map(([k, d]) => {
+    const ok = outpCanMake(k);
+    const mats = Object.entries(d.mats).map(([m, n]) => `<span class="${matAvail(m) >= n ? 'ok' : 'no'}" title="${MATS[m].name}">${spriteImg(matCanvas(m), 20)}${n}<small>/${matAvail(m)}</small></span>`).join(' ');
+    return `<div class="row"><span class="gl">${spriteImg(outpIcon(k), 32)}</span><div class="nm"><b>${d.name}</b><small>${d.blurb}</small></div><span class="mats">${mats}</span><div class="acts"><button class="btn tiny ${ok ? 'default' : ''}" data-outp-craft="${k}" ${ok ? '' : 'disabled'}>Make</button></div></div>`;
+  }).join('');
+  const by = {};
+  for (const [id, m, , o] of outpList()) (by[id] = by[id] || { m, ks: [] }).ks.push(o.k);
+  const mine = Object.entries(by).map(([id, { m, ks }]) => `<div class="row"><div class="nm"><b>${esc(m.name || id)}</b><small>${ks.map(k => OUTP[k].what).join(' · ')}</small></div></div>`).join('');
+  return `<p class="hint" style="margin-top:0 !important">Kits are made anywhere, from what you carry (or have stored, on your land). Set one down in a cave level you have mostly explored, or whose ruler is dead: it goes on the tile you face. Each thing you make raises Survival.</p>
+    <div class="list">${rows}</div>${mine ? `<h3>Your outposts</h3><div class="list">${mine}</div>` : ''}`;
+}
+{
+  const _hc = htmlCrafting;
+  htmlCrafting = function () {
+    const real = craftView;
+    if (real === 'outpost') craftView = 'forge';
+    let html = _hc.apply(this, arguments);
+    craftView = real;
+    html = html.replace(/(<div class="filters" role="tablist">[\s\S]*?)(<\/div>)/, (m0, a, b) => `${a}<button class="${real === 'outpost' ? 'on' : ''}" role="tab" aria-selected="${real === 'outpost'}" data-a="cview" data-v="outpost">Outposts</button>${b}`);
+    if (real === 'outpost') {
+      html = html.replace(/class="on" role="tab" aria-selected="true" data-a="cview" data-v="forge"/, 'class="" role="tab" aria-selected="false" data-a="cview" data-v="forge"');
+      const end = html.indexOf('</div>', html.indexOf('class="filters"')) + 6; html = html.slice(0, end) + htmlOutposts();
+    }
+    return html;
+  };
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-outp-craft]'); if (!b || !S) return; outpCraft(b.dataset.outpCraft); });
+
+// ---------------- placing from the pack ----------------
+{
+  const _ui = useItem;
+  useItem = function (it) { if (it && T(it).use === 'place') return outpPlace(it); return _ui.apply(this, arguments); };
+  const _dc = detailCard;
+  detailCard = function (sel) { let h = _dc.apply(this, arguments); if (sel && sel.it && T(sel.it).use === 'place') h = h.replace(/(data-a="use" data-v="[^"]*">)Use</, '$1Place<'); return h; };
+}
+function openPlacePicker() {
+  const kits = P().inv.filter(i => T(i).use === 'place');
+  if (!kits.length) { msg('You have no outpost kits. Make them in Crafting › Outposts.'); return; }
+  if (kits.length === 1) { outpPlace(kits[0]); return; }
+  const draw = () => {
+    const m = curMap(), list = P().inv.filter(i => T(i).use === 'place');
+    $('#modal-body').innerHTML = `<p class="lead">Set a kit down on the tile you face.</p><div class="list">${list.map(it => { const why = outpWhyNot(m, T(it).outpost); return itemRow(it, `<button class="btn tiny ${why ? '' : 'default'}" data-outp-place="${it.uid}" ${why ? 'disabled' : ''}>Place</button>`, why ? `<span class="lock">${esc(why)}</span>` : ''); }).join('')}</div>`;
+  };
+  openModal('Place an outpost', '', { refresh: draw }); draw();
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-outp-place]'); if (!b || !S) return; const it = P().inv.find(i => i.uid === b.dataset.outpPlace); if (it) outpPlace(it); });
+
+// ---------------- using them ----------------
+let outpCur = null; // [x, y] of the one whose window is open
+const outpAt = (x, y) => outpsOf(curMap())[K(x, y)];
+onTrigger(tr => { if (!tr.outpost) return false; const p = P(), m = curMap(); for (const k in outpsOf(m)) { const [x, y] = k.split(',').map(Number); if (cheb({ x, y }, p) <= 1 && m.trig[k] === tr) { outpOpen(x, y); return true; } } return false; });
+function outpOpen(x, y) {
+  const o = outpAt(x, y); if (!o) return;
+  outpCur = [x, y]; const d = OUTP[o.k];
+  const draw = () => {
+    const o2 = outpAt(x, y); if (!o2) { closeModal(true); return; }
+    let body = '';
+    if (o.k === 'camp') {
+      const foes = curMap().mons.some(m => monVisible(m) && !MONSTERS[m.id].prey && !m.peace);
+      body = `<div class="btnrow"><button class="btn default" data-outp="sleep" ${foes ? 'disabled' : ''}>Sleep by the fire till morning</button>${typeof htmlKitchen === 'function' ? '<button class="btn" data-outp="cook">Cook</button>' : ''}</div>
+        <p class="dim">${foes ? 'Not with enemies in sight.' : 'The fire is warm and the dark keeps its distance. The world map can take you home from here.'}</p>`;
+    } else if (o.k === 'chest') body = outpChestHtml(o);
+    else if (o.k === 'rig') {
+      const due = outpRigDue(o);
+      body = `<p>${due.days ? `It has sifted for ${due.days} day${due.days > 1 ? 's' : ''}: ${outpYieldText(due.got)}.` : 'Nothing yet. Come back tomorrow.'}${due.days >= OUTP_RIG_DAYS ? ' The bucket is full; it can’t hold more.' : ''}</p>
+        <div class="btnrow"><button class="btn ${due.days ? 'default' : ''}" data-outp="collect" ${due.days ? '' : 'disabled'}>Collect</button></div>`;
+    } else if (o.k === 'lantern') body = '<p class="dim">The lamp burns steady. It lights six tiles around it, for anyone, for good.</p>';
+    else if (o.k === 'bench') body = `<div class="btnrow"><button class="btn default" data-outp="forge">Work the forge</button><button class="btn" data-outp="brew">Brew potions</button></div><p class="dim">Recipes still need their skills and materials.</p>`;
+    else if (o.k === 'ladder') {
+      const up = outpStair(curMap(), '<'), dn = outpStair(curMap(), '>');
+      body = `<div class="btnrow"><button class="btn ${up ? 'default' : ''}" data-outp="up" ${up ? '' : 'disabled'}>Climb to the way up</button><button class="btn" data-outp="down" ${dn ? '' : 'disabled'}>Climb to the way down</button></div>${dn ? '' : '<p class="dim">You haven’t found the way down on this level yet.</p>'}`;
+    }
+    $('#modal-body').innerHTML = keeperArt(nativePropCanvas('op_' + o.k), `<p>${d.blurb}</p>`) + body +
+      `<div class="btnrow"><button class="btn ghost" data-outp="pack">Pack it up</button></div>`;
+  };
+  openModal(cap(d.what.replace(/^An? /i, '')), '', { refresh: draw, wide: o.k === 'chest' }); draw();
+}
+function outpPickUp(x, y) {
+  const m = curMap(), k = K(x, y), o = outpsOf(m)[k]; if (!o) return false;
+  if (o.k === 'chest' && ((o.items || []).length || Object.values(o.mats || {}).some(n => n > 0))) { msg('Empty the chest before you pack it up.', 'warn'); return false; }
+  if (o.k === 'rig' && outpRigDue(o).days) outpCollect(x, y, true);
+  delete m.outposts[k]; delete m.decor[k]; delete m.trig[k];
+  const n0 = m.lights.length; m.lights = m.lights.filter(l => !(l[0] === x && l[1] === y && l[3] === OUTP[o.k].lk)); if (m.lights.length !== n0) setLit(m, null);
+  addItem(makeItem('op_' + o.k));
+  msg(`You pack up ${OUTP[o.k].what.toLowerCase()}.`);
+  if (modalOpen) closeModal(true);
+  computeFov(); render();
+  return true;
+}
+// the ore sluice: two stone and one ore a day; the ore gets better the deeper the level
+function outpOre(m, day) {
+  const d = m.depth || 1;
+  if (d >= 9) return day % 3 === 0 ? 'mithril' : 'silver';
+  if (d >= 5) return day % 2 ? 'silver' : 'iron';
+  return 'iron';
+}
+function outpRigDue(o, m = curMap()) {
+  const days = Math.max(0, Math.min(OUTP_RIG_DAYS, S.day - (o.last != null ? o.last : o.day))), got = {};
+  for (let i = 0; i < days; i++) { got.stone = (got.stone || 0) + 2; const ore = outpOre(m, S.day - i); got[ore] = (got[ore] || 0) + 1; }
+  return { days, got };
+}
+const outpYieldText = got => Object.entries(got).map(([id, n]) => `${n} ${MATS[id].name.toLowerCase()}`).join(', ');
+function outpCollect(x, y, quiet) {
+  const o = outpAt(x, y); if (!o || o.k !== 'rig') return null;
+  const { days, got } = outpRigDue(o); if (!days) return null;
+  for (const id in got) addMat(id, got[id]);
+  o.last = S.day;
+  if (typeof useSkill === 'function') useSkill('survival', 2 * days);
+  msg(`From the sluice: ${outpYieldText(got)}.`, 'good');
+  if (!quiet && modalRefresh) refresh();
+  return got;
+}
+// a level's stair, if you've seen it, and an open tile beside it
+function outpStair(m, c) {
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (m.t[y][x] === c && m.seen[y * m.w + x] && m.links[K(x, y)]) {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) if (walkable(m, x + dx, y + dy) && !m.mons.some(o => o.x === x + dx && o.y === y + dy) && !m.links[K(x + dx, y + dy)]) return [x + dx, y + dy];
+  }
+  return null;
+}
+function outpClimb(c) {
+  const m = curMap(), p = P(), to = outpStair(m, c); if (!to) return;
+  const dist = Math.max(Math.abs(to[0] - p.x), Math.abs(to[1] - p.y));
+  closeModal(true); S.turn += Math.max(3, Math.round(dist / 3));
+  p.x = to[0]; p.y = to[1];
+  msg(c === '<' ? 'Hand over hand along your ropes, you come out by the stair up.' : 'You swing down your ropes and land beside the stair down.', 'talk');
+  computeFov(); render();
+}
+// the chest: this level's own stash
+function outpChestHtml(o) {
+  const p = P(), mats = o.mats || {};
+  return `<div class="cols"><section><h3>Pack <span class="dim">${carried()} of ${capacity()} lb</span></h3>${p.inv.map(it => itemRow(it, `<button class="btn tiny" data-outp="put:${it.uid}">Store →</button>`)).join('') || '<p class="dim">Empty.</p>'}
+      ${Object.keys(p.mats).filter(k => p.mats[k] > 0).map(k => matRow(k, p.mats[k], `<button class="btn tiny" data-outp="putmat:${k}">Store →</button>`)).join('')}
+      ${Object.values(p.mats).some(v => v > 0) ? '<div class="btnrow"><button class="btn tiny" data-outp="putallmats">Store all materials</button></div>' : ''}</section>
+    <section><h3>Chest <span class="dim">${(o.items || []).length} items</span></h3>${(o.items || []).map(it => itemRow(it, `<button class="btn tiny" data-outp="take:${it.uid}">← Take</button>`)).join('')}
+      ${Object.keys(mats).filter(k => mats[k] > 0).map(k => matRow(k, mats[k], `<button class="btn tiny" data-outp="takemat:${k}">← Take</button>`)).join('') || ((o.items || []).length ? '' : '<p class="dim">Empty.</p>')}</section></div>`;
+}
+function outpChest(o, cmd, v) {
+  const p = P(); o.items = o.items || []; o.mats = o.mats || {};
+  if (cmd === 'put') { const it = p.inv.find(i => i.uid === v); if (!it || T(it).cat === 'story') return; if (p.ready === it.uid) p.ready = null; p.inv = p.inv.filter(i => i !== it); o.items.push(it); }
+  if (cmd === 'take') { const it = o.items.find(i => i.uid === v); if (!it) return; o.items = o.items.filter(i => i !== it); addItem(it, true); }
+  if (cmd === 'putmat') { o.mats[v] = (o.mats[v] || 0) + (p.mats[v] || 0); p.mats[v] = 0; }
+  if (cmd === 'putallmats') for (const k in p.mats) if (p.mats[k] > 0) { o.mats[k] = (o.mats[k] || 0) + p.mats[k]; p.mats[k] = 0; }
+  if (cmd === 'takemat') { p.mats[v] = (p.mats[v] || 0) + (o.mats[v] || 0); delete o.mats[v]; }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-outp]'); if (!b || !S || !outpCur) return;
+  const [x, y] = outpCur, o = outpAt(x, y); if (!o) return;
+  const [cmd, v] = b.dataset.outp.split(':');
+  if (cmd === 'sleep') { closeModal(true); rest('camp'); return; }
+  if (cmd === 'cook') { craftView = 'kitchen'; closeModal(true); openHero('craft'); return; }
+  if (cmd === 'forge' || cmd === 'brew') { craftView = cmd === 'forge' ? 'forge' : 'bench'; closeModal(true); openHero('craft'); return; }
+  if (cmd === 'collect') { outpCollect(x, y); return; }
+  if (cmd === 'up' || cmd === 'down') { outpClimb(cmd === 'up' ? '<' : '>'); return; }
+  if (cmd === 'pack') { outpPickUp(x, y); return; }
+  if (o.k === 'chest') { outpChest(o, cmd, v); refresh(); }
+});
+// the bench counts as a forge and a brewing bench; the camp is a kitchen
+const outpNear = (k, r = 2) => { const m = curMap(), p = P(); for (const key in outpsOf(m)) if (m.outposts[key].k === k) { const [x, y] = key.split(',').map(Number); if (Math.max(Math.abs(x - p.x), Math.abs(y - p.y)) <= r) return [x, y]; } return null; };
+{
+  const _ch = craftHere;
+  craftHere = function (st) { if ((st === 'forge' || st === 'bench') && outpNear('bench')) return true; return _ch.apply(this, arguments); };
+  if (typeof kitchenHere === 'function') { const _kh = kitchenHere; kitchenHere = function () { return _kh.apply(this, arguments) || (outpNear('camp') ? 'your campfire' : null); }; }
+}
+// sleeping at camp: as at the inn, but by your own fire
+{
+  const _rest = rest;
+  rest = function (where) { const r = _rest.apply(this, arguments); if (where === 'camp') { const st = outpState(); st.slept = (st.slept || 0) + 1; } return r; };
+}
+
+// ---------------- the dark keeps back from a camp ----------------
+function outpGuarded(m, x, y) {
+  for (const k in outpsOf(m)) { const o = m.outposts[k]; if (o.k !== 'camp') continue; const [cx, cy] = k.split(',').map(Number); if (Math.max(Math.abs(cx - x), Math.abs(cy - y)) <= OUTP_SAFE_R) return true; }
+  return false;
+}
+{
+  const _sa = spawnAt;
+  spawnAt = function (m, id, x, y) { if (m && m.outposts && outpGuarded(m, x, y) && MONSTERS[id] && !MONSTERS[id].boss) return; return _sa.apply(this, arguments); };
+}
+onEnter(id => { try { outpSync(S.maps[id]); } catch (e) { } });
+
+// ---------------- the world map: a camp is somewhere to travel to, and from ----------------
+if (typeof wArrive === 'function') {
+  const _wa = wArrive;
+  wArrive = function (id) {
+    const m = S.maps[id], camp = m && Object.keys(outpsOf(m)).find(k => m.outposts[k].k === 'camp');
+    if (!camp) return _wa.apply(this, arguments);
+    S.story.travelled = 1; outpSync(m);
+    const [x, y] = camp.split(',').map(Number);
+    for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) if (walkable(m, x + dx, y + dy) && !m.mons.some(o => o.x === x + dx && o.y === y + dy) && !m.links[K(x + dx, y + dy)]) { goMap(id, x + dx, y + dy); msg('You come out by your camp. The fire is still warm.', 'talk'); return; }
+    return _wa.apply(this, arguments);
+  };
+  const _ws = wSafe;
+  wSafe = function () {
+    if (_ws.apply(this, arguments)) return true;
+    const m = curMap(); if (!outpNear('camp', 2)) return false;
+    return !m.mons.some(o => (o.hunting > 0 || o.angry) && !o.peace && cheb(o, P()) <= 10);
+  };
+}
+
+// ---------------- the phone's Menu sheet, the long-press menu ----------------
+const OUTP_ICON_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M3 20h18"/><path d="M6 20l6-14 6 14"/><path d="M12 6v14"/><path d="M9.5 20c0-2 1-3 2.5-4.5 1.5 1.5 2.5 2.5 2.5 4.5"/></svg>';
+if (typeof hubTiles === 'function') {
+  const _ht = hubTiles;
+  hubTiles = function () {
+    const secs = _ht.apply(this, arguments);
+    try {
+      const kits = S && P().inv.some(i => T(i).use === 'place');
+      if (kits) { const doSec = secs.find(s => s[0] === 'Do'); if (doSec) doSec[1].push({ k: 'place', label: 'Place', icon: OUTP_ICON_SVG, go: () => openPlacePicker(), hot: outpCave(curMap()) && outpKnown(curMap()) }); }
+    } catch (e) { }
+    return secs;
+  };
+}
+if (typeof tileMenu === 'function') {
+  const _tm = tileMenu;
+  tileMenu = function (tx, ty) {
+    const r = _tm.apply(this, arguments);
+    try {
+      const o = outpAt(tx, ty);
+      if (o) {
+        r.title = cap(OUTP[o.k].what.replace(/^An? /i, ''));
+        r.items = [{ label: 'Use', fn: () => reachThen(tx, ty, () => outpOpen(tx, ty)) }, { label: 'Pack it up', fn: () => reachThen(tx, ty, () => outpPickUp(tx, ty)) }].concat(r.items.filter(i => i.label !== 'Examine'), [{ label: 'Examine', fn: () => msg(OUTP[o.k].blurb, 'talk') }]);
+      }
+    } catch (e) { }
+    return r;
+  };
+}
+
+// ---------------- light and life: the camp's fire and the lantern flicker ----------------
+onDraw(view => {
+  const m = curMap(); if (!m.outposts) return;
+  const t = performance.now() / 1000;
+  ctx.globalCompositeOperation = 'lighter';
+  for (const k in m.outposts) {
+    const o = m.outposts[k]; if (o.k !== 'camp' && o.k !== 'lantern') continue;
+    const [x, y] = k.split(',').map(Number); if (!(m.lit || m.seen[y * m.w + x])) continue;
+    const f = 0.75 + 0.25 * Math.sin(t * 7.3 + x) * Math.sin(t * 3.1 + y), cx = view.ox + (x + 0.5) * TS;
+    const cy = view.oy + (o.k === 'camp' ? y + 0.55 : y - 0.75) * TS, r = TS * (o.k === 'camp' ? 1.1 : 0.8) * (0.9 + 0.1 * f);
+    const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, `rgba(255,170,70,${(0.32 * f).toFixed(3)})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+});
+
+// ---------------- the codex, tips, achievements ----------------
+try {
+  CX_SHELVES.push(['outpost', 'Outposts', () => Object.keys(OUTP).map(k => 'op_' + k)]);
+  const _cw = cxWhere;
+  cxWhere = function (k) { const out = _cw.apply(this, arguments); if (ITEMS[k] && ITEMS[k].outpost) out.push('Made in Crafting › Outposts', OUTP[ITEMS[k].outpost].blurb); return out; };
+} catch (e) { }
+try {
+  TIPS.push(['outpostlvl', () => outpCave(curMap()) && outpKnown(curMap()) && !Object.keys(outpState().made).length, 'You know this level well now. Crafting › Outposts makes camps, chests, lantern posts and ore sluices you can set down here, so a cleared level stays useful.']);
+  TIPS.push(['outpostkit', () => P().inv.some(i => T(i).use === 'place'), 'An outpost kit: in a cave level you know well, Place it from your pack (or Menu › Place) on the tile you face. Walk into it to use it; long-press it to pack it up.']);
+} catch (e) { }
+try {
+  ACHIEVEMENTS.push(['outpost', 'Staking a Claim', 'Set up your first cavern outpost.', () => (cxState().n.outposts || 0) >= 1, 'explore']);
+  ACHIEVEMENTS.push(['basecamp', 'Base Camp', 'Have a camp, a chest and an ore sluice on the same cave level.', () => Object.values(S.maps).some(m => { const ks = Object.values(outpsOf(m)).map(o => o.k); return ['camp', 'chest', 'rig'].every(k => ks.includes(k)); }), 'explore']);
+  ACHIEVEMENTS.push(['lamplighter', 'Lamplighter', 'Light the dark with four lantern posts.', () => outpList().filter(e => e[3].k === 'lantern').length >= 4, 'explore']);
+} catch (e) { }
+// kits sit with your gear in the pack's filters
+{ const _if = invFits; invFits = function (t) { return (t.cat === 'outpost' && invFilter === 'gear') || _if.apply(this, arguments); }; }
+
+</script>
 
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
