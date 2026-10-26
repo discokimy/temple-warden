@@ -29735,6 +29735,32 @@ document.addEventListener('change', e => {
   msg(MIX.on ? 'Your own music can play now. Start it in your music app and come back.' : 'The game\'s music is back.', 'good');
 });
 
+// ---------------- quiet when you leave ----------------
+// The game plays as a media app (so the silent switch doesn't mute it), and iOS lets media apps keep playing in the
+// background. A game shouldn't: the moment it leaves the screen (home button, app switcher, lock) every sound
+// stops, and it picks up again when you come back.
+function bgPause() {
+  try { if (SND.ctx && SND.ctx.state === 'running') SND.ctx.suspend(); } catch (e) { }
+  try { if (SILENT_EL && !SILENT_EL.paused) SILENT_EL.pause(); } catch (e) { }
+  try { if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused'; } catch (e) { }
+}
+function bgResume() {
+  if (document.visibilityState !== 'visible') return;
+  // iOS may want a tap before sound can start again; the next tap anywhere does it (see sndInit)
+  try { if (SND.ctx && SND.ctx.state !== 'running') SND.ctx.resume().catch(() => { }); } catch (e) { }
+  try { if (!MIX.on && SILENT_EL && SILENT_EL.paused) { const pr = SILENT_EL.play(); if (pr && pr.catch) pr.catch(() => { }); } } catch (e) { }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') bgPause(); else bgResume(); });
+addEventListener('pagehide', bgPause);
+addEventListener('pageshow', bgResume);
+document.addEventListener('freeze', bgPause);
+// while the sound is paused, nothing new is queued (or it would all play at once when you come back)
+{
+  const whenLive = f => function () { if (SND.ctx && SND.ctx.state !== 'running') return; return f.apply(this, arguments); };
+  tone = whenLive(tone); hiss = whenLive(hiss);
+  if (typeof pluck === 'function') { pluck = whenLive(pluck); flute = whenLive(flute); pad = whenLive(pad); fmBell = whenLive(fmBell); }
+}
+
 </script>
 <script>/* animtune.js */
 // Feel, tuned. Letting go of the stick now slows Corin to a stop instead of halting him dead mid-stride; blows
